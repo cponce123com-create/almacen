@@ -184,6 +184,47 @@ COL_MAP = {
     "STOCK_MINIMO": "stock_minimo",
 }
 
+COL_MAP_ENTRADA = {
+    "CODIGO": "codigo",
+    "CANTIDAD": "cantidad",
+    "CANTIDA": "cantidad",
+    "U.M2": "um",
+    "U.M": "um",
+    "UM": "um",
+    "ZONA": "zona",
+    "UBICACIÓN": "ubicacion",
+    "UBICACION": "ubicacion",
+    "ALM": "alm",
+    "F.INGRESO": "fecha",
+    "FECHA": "fecha",
+    "FECHA INGRESO": "fecha",
+    "OC": "oc",
+    "G.REMISION": "guia",
+    "GUIA": "guia",
+    "GUIA REMISION": "guia",
+}
+
+COL_MAP_SALIDA = {
+    "CODIGO": "codigo",
+    "CANTIDAD": "cantidad",
+    "U.M2": "um",
+    "U.M": "um",
+    "UM": "um",
+    "F. SALIDA": "fecha",
+    "FECHA": "fecha",
+    "FECHA SALIDA": "fecha",
+    "N° VALE": "nro_vale",
+    "NRO VALE": "nro_vale",
+    "VALE": "nro_vale",
+    "OI": "oi",
+    "C.COSTO": "c_costo",
+    "C COSTO": "c_costo",
+    "COSTO": "c_costo",
+    "MAQUINA": "maquina",
+    "CATEGORIA": "categoria",
+    "CATEGPRIA": "categoria",
+}
+
 # Límites máximos según modelos.py
 FIELD_MAXLEN = {
     "codigo": 50,
@@ -599,6 +640,463 @@ def producto_importar_confirmar():
             "danger",
         )
         return redirect(url_for("routes.producto_importar"))
+
+
+# ---------------------------------------------------------------------------
+# Helper: Parsear Excel de movimientos (entradas / salidas)
+# ---------------------------------------------------------------------------
+
+
+def _parse_excel_movimiento(tipo, file):
+    """Parsea un archivo Excel de movimientos.
+
+    ``tipo`` es 'entrada' o 'salida'.
+    ``file`` puede ser ruta (str) o file-like.
+    Retorna (headers_raw, col_indices, filas, errores).
+    """
+    errores = []
+    col_map = COL_MAP_ENTRADA if tipo == "entrada" else COL_MAP_SALIDA
+
+    try:
+        import openpyxl
+    except ImportError:
+        errores.append("openpyxl no está instalado en el servidor.")
+        return None, None, None, errores
+
+    try:
+        wb = openpyxl.load_workbook(file, data_only=True)
+        ws = wb.active
+    except Exception:
+        errores.append("El archivo no es un Excel válido o está corrupto.")
+        return None, None, None, errores
+
+    first_row = list(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+    if not first_row or not any(c is not None for c in first_row[0]):
+        errores.append("El archivo Excel está vacío.")
+        return None, None, None, errores
+
+    headers_raw = []
+    for cell_val in first_row[0]:
+        s = str(cell_val).strip().upper() if cell_val is not None else ""
+        headers_raw.append(s)
+
+    col_indices = {}
+    for i, h in enumerate(headers_raw):
+        for key, mapped in col_map.items():
+            if key.upper() == h:
+                col_indices[mapped] = i
+                break
+
+    if "codigo" not in col_indices:
+        cols = ", ".join(h for h in headers_raw if h)
+        errores.append(
+            f"No se encontró columna 'CODIGO'. Columnas del archivo: {cols}" if cols
+            else "No se encontró la columna 'CODIGO'."
+        )
+        return headers_raw, None, None, errores
+
+    total_rows = sum(
+        1 for _ in ws.iter_rows(min_row=2, values_only=True)
+        if any(c is not None for c in _)
+    )
+    if total_rows > MAX_IMPORT_ROWS:
+        errores.append(
+            f"El archivo tiene {total_rows} filas con datos. "
+            f"Máximo permitido: {MAX_IMPORT_ROWS}."
+        )
+        return headers_raw, col_indices, None, errores
+
+    # Parsear fechas con varios formatos
+    def _parse_fecha(val):
+        if isinstance(val, datetime):
+            return val
+        if not val:
+            return None
+        s = str(val).strip()
+        for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%y"):
+            try:
+                return datetime.strptime(s, fmt)
+            except ValueError:
+                continue
+        return None
+
+    filas = []
+    for excel_row in ws.iter_rows(min_row=2, values_only=True):
+        if not any(cell is not None for cell in excel_row):
+            continue
+
+        codigo = _excel_val(excel_row, col_indices, "codigo").upper()
+        if not codigo:
+            continue
+
+        cantidad = 0.0
+        if "cantidad" in col_indices:
+            raw = _excel_val(excel_row, col_indices, "cantidad")
+            try:
+                cantidad = max(0.0, float(raw.replace(",", ".")))
+            except (ValueError, AttributeError):
+                cantidad = 0.0
+
+        if cantidad <= 0:
+            continue
+
+        um = _excel_val(excel_row, col_indices, "um").upper() if "um" in col_indices else ""
+        fecha = _parse_fecha(
+            _excel_val(excel_row, col_indices, "fecha") if "fecha" in col_indices else ""
+        )
+
+        fila = {
+            "codigo": codigo,
+            "cantidad": cantidad,
+            "um": um,
+            "fecha": fecha,
+        }
+
+        if tipo == "entrada":
+            fila["zona"] = _sanitize_field(
+                _excel_val(excel_row, col_indices, "zona") if "zona" in col_indices else "", "zona"
+            )
+            fila["ubicacion"] = _sanitize_field(
+                _excel_val(excel_row, col_indices, "ubicacion") if "ubicacion" in col_indices else "", "ubicacion"
+            )
+            fila["alm"] = _sanitize_field(
+                _excel_val(excel_row, col_indices, "alm") if "alm" in col_indices else "", "alm"
+            ) or "ALM-01"
+            fila["oc"] = _sanitize_field(
+                _excel_val(excel_row, col_indices, "oc") if "oc" in col_indices else "", "oc"
+            )
+            fila["guia"] = _sanitize_field(
+                _excel_val(excel_row, col_indices, "guia") if "guia" in col_indices else "", "guia_remision"
+            )
+        else:
+            fila["nro_vale"] = _sanitize_field(
+                _excel_val(excel_row, col_indices, "nro_vale") if "nro_vale" in col_indices else "", "nro_vale"
+            )
+            fila["oi"] = _sanitize_field(
+                _excel_val(excel_row, col_indices, "oi") if "oi" in col_indices else "", "oi"
+            )
+            fila["c_costo"] = _sanitize_field(
+                _excel_val(excel_row, col_indices, "c_costo") if "c_costo" in col_indices else "", "c_costo"
+            )
+            fila["maquina"] = _sanitize_field(
+                _excel_val(excel_row, col_indices, "maquina") if "maquina" in col_indices else "", "maquina"
+            )
+            fila["categoria"] = _sanitize_field(
+                _excel_val(excel_row, col_indices, "categoria") if "categoria" in col_indices else "", "categoria"
+            )
+
+        filas.append(fila)
+
+    return headers_raw, col_indices, filas, errores
+
+
+# ---------------------------------------------------------------------------
+# Importar Entradas desde Excel
+# ---------------------------------------------------------------------------
+
+@routes_bp.route("/entradas/importar", methods=["GET", "POST"])
+@login_required
+def entradas_importar():
+    import uuid as _uuid
+    import tempfile as _tempfile
+
+    if request.method == "POST":
+        if "archivo" not in request.files:
+            flash("No se seleccionó ningún archivo.", "danger")
+            return redirect(url_for("routes.entradas_importar"))
+
+        file = request.files["archivo"]
+        if not file or file.filename == "":
+            flash("No se seleccionó ningún archivo.", "danger")
+            return redirect(url_for("routes.entradas_importar"))
+
+        if not file.filename.lower().endswith(".xlsx"):
+            flash("Solo se aceptan archivos .xlsx (Excel moderno).", "warning")
+            return redirect(url_for("routes.entradas_importar"))
+
+        tmp_suffix = _uuid.uuid4().hex[:12]
+        tmp_path = os.path.join(_tempfile.gettempdir(), f"almacen_entrada_{tmp_suffix}.xlsx")
+        file.save(tmp_path)
+
+        try:
+            headers_raw, col_indices, filas, errores_prev = _parse_excel_movimiento("entrada", tmp_path)
+        except Exception:
+            errores_prev = ["Error inesperado al leer el archivo."]
+            headers_raw = None
+            filas = None
+
+        if errores_prev:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+            for e in errores_prev:
+                flash(e, "danger")
+            return redirect(url_for("routes.entradas_importar"))
+
+        if not filas:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+            flash("No se encontraron filas válidas para importar.", "warning")
+            return redirect(url_for("routes.entradas_importar"))
+
+        headers_mostrar = [h for h in headers_raw if h]
+        return render_template(
+            "entradas_importar.html",
+            preview=True,
+            tmp_path=tmp_path,
+            headers=headers_mostrar,
+            filas=filas[:20],
+            total_filas=len(filas),
+            nombre_archivo=file.filename,
+        )
+
+    return render_template("entradas_importar.html")
+
+
+@routes_bp.route("/entradas/importar/confirmar", methods=["POST"])
+@login_required
+def entradas_importar_confirmar():
+    tmp_path = request.form.get("tmp_path", "").strip()
+    if not tmp_path or not os.path.exists(tmp_path):
+        flash("Archivo temporal no encontrado. Vuelve a seleccionar el archivo.", "danger")
+        return redirect(url_for("routes.entradas_importar"))
+
+    try:
+        headers_raw, col_indices, filas, errores_prev = _parse_excel_movimiento("entrada", tmp_path)
+    except Exception:
+        errores_prev = ["Error inesperado al leer el archivo temporal."]
+        filas = None
+
+    if errores_prev:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        for e in errores_prev:
+            flash(e, "danger")
+        return redirect(url_for("routes.entradas_importar"))
+
+    if not filas:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        flash("No se encontraron filas válidas para importar.", "warning")
+        return redirect(url_for("routes.entradas_importar"))
+
+    insertadas = []
+    errores = []
+
+    try:
+        for f in filas:
+            producto = Producto.query.filter_by(codigo=f["codigo"]).first()
+            if not producto:
+                errores.append(f"'{f['codigo']}': producto no encontrado en BD")
+                continue
+
+            entrada = Entrada(
+                producto_id=producto.id,
+                cantidad=f["cantidad"],
+                um=f.get("um") or producto.um,
+                zona=f.get("zona", ""),
+                ubicacion=f.get("ubicacion", ""),
+                alm=f.get("alm", "ALM-01"),
+                oc=f.get("oc", ""),
+                guia_remision=f.get("guia", ""),
+                fecha_ingreso=f.get("fecha") or datetime.now(timezone.utc),
+            )
+            producto.stock_actual += f["cantidad"]
+            db.session.add(entrada)
+            insertadas.append(f["codigo"])
+
+        db.session.commit()
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
+        partes = [f"✅ {len(insertadas)} entradas registradas"]
+        if errores:
+            partes.append(f"⚠️ {len(errores)} errores")
+        msg = "Importación completada: " + ", ".join(partes)
+        if errores:
+            msg += ". Detalles: " + "; ".join(errores[:5])
+            if len(errores) > 5:
+                msg += f" y {len(errores) - 5} más."
+            flash(msg, "warning")
+        else:
+            flash(msg, "success")
+        return redirect(url_for("routes.entradas"))
+
+    except Exception as exc:
+        db.session.rollback()
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        flash(f"Error de base de datos: {exc}. No se guardaron cambios.", "danger")
+        return redirect(url_for("routes.entradas_importar"))
+
+
+# ---------------------------------------------------------------------------
+# Importar Salidas desde Excel
+# ---------------------------------------------------------------------------
+
+@routes_bp.route("/salidas/importar", methods=["GET", "POST"])
+@login_required
+def salidas_importar():
+    import uuid as _uuid
+    import tempfile as _tempfile
+
+    if request.method == "POST":
+        if "archivo" not in request.files:
+            flash("No se seleccionó ningún archivo.", "danger")
+            return redirect(url_for("routes.salidas_importar"))
+
+        file = request.files["archivo"]
+        if not file or file.filename == "":
+            flash("No se seleccionó ningún archivo.", "danger")
+            return redirect(url_for("routes.salidas_importar"))
+
+        if not file.filename.lower().endswith(".xlsx"):
+            flash("Solo se aceptan archivos .xlsx (Excel moderno).", "warning")
+            return redirect(url_for("routes.salidas_importar"))
+
+        tmp_suffix = _uuid.uuid4().hex[:12]
+        tmp_path = os.path.join(_tempfile.gettempdir(), f"almacen_salida_{tmp_suffix}.xlsx")
+        file.save(tmp_path)
+
+        try:
+            headers_raw, col_indices, filas, errores_prev = _parse_excel_movimiento("salida", tmp_path)
+        except Exception:
+            errores_prev = ["Error inesperado al leer el archivo."]
+            headers_raw = None
+            filas = None
+
+        if errores_prev:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+            for e in errores_prev:
+                flash(e, "danger")
+            return redirect(url_for("routes.salidas_importar"))
+
+        if not filas:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+            flash("No se encontraron filas válidas para importar.", "warning")
+            return redirect(url_for("routes.salidas_importar"))
+
+        headers_mostrar = [h for h in headers_raw if h]
+        return render_template(
+            "salidas_importar.html",
+            preview=True,
+            tmp_path=tmp_path,
+            headers=headers_mostrar,
+            filas=filas[:20],
+            total_filas=len(filas),
+            nombre_archivo=file.filename,
+        )
+
+    return render_template("salidas_importar.html")
+
+
+@routes_bp.route("/salidas/importar/confirmar", methods=["POST"])
+@login_required
+def salidas_importar_confirmar():
+    tmp_path = request.form.get("tmp_path", "").strip()
+    if not tmp_path or not os.path.exists(tmp_path):
+        flash("Archivo temporal no encontrado. Vuelve a seleccionar el archivo.", "danger")
+        return redirect(url_for("routes.salidas_importar"))
+
+    try:
+        headers_raw, col_indices, filas, errores_prev = _parse_excel_movimiento("salida", tmp_path)
+    except Exception:
+        errores_prev = ["Error inesperado al leer el archivo temporal."]
+        filas = None
+
+    if errores_prev:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        for e in errores_prev:
+            flash(e, "danger")
+        return redirect(url_for("routes.salidas_importar"))
+
+    if not filas:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        flash("No se encontraron filas válidas para importar.", "warning")
+        return redirect(url_for("routes.salidas_importar"))
+
+    insertadas = []
+    errores = []
+
+    try:
+        for f in filas:
+            producto = Producto.query.filter_by(codigo=f["codigo"]).first()
+            if not producto:
+                errores.append(f"'{f['codigo']}': producto no encontrado en BD")
+                continue
+
+            if f["cantidad"] > producto.stock_actual:
+                errores.append(
+                    f"'{f['codigo']}': stock insuficiente "
+                    f"(disponible {producto.stock_actual:.2f}, solicitado {f['cantidad']:.2f})"
+                )
+                continue
+
+            salida = Salida(
+                producto_id=producto.id,
+                cantidad=f["cantidad"],
+                um=f.get("um") or producto.um,
+                nro_vale=f.get("nro_vale", ""),
+                oi=f.get("oi", ""),
+                c_costo=f.get("c_costo", ""),
+                maquina=f.get("maquina", ""),
+                categoria=f.get("categoria", ""),
+                fecha_salida=f.get("fecha") or datetime.now(timezone.utc),
+            )
+            producto.stock_actual -= f["cantidad"]
+            db.session.add(salida)
+            insertadas.append(f["codigo"])
+
+        db.session.commit()
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
+        partes = [f"✅ {len(insertadas)} salidas registradas"]
+        if errores:
+            partes.append(f"⚠️ {len(errores)} errores")
+        msg = "Importación completada: " + ", ".join(partes)
+        if errores:
+            msg += ". Detalles: " + "; ".join(errores[:5])
+            if len(errores) > 5:
+                msg += f" y {len(errores) - 5} más."
+            flash(msg, "warning")
+        else:
+            flash(msg, "success")
+        return redirect(url_for("routes.salidas"))
+
+    except Exception as exc:
+        db.session.rollback()
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        flash(f"Error de base de datos: {exc}. No se guardaron cambios.", "danger")
+        return redirect(url_for("routes.salidas_importar"))
 
 
 # ---------------------------------------------------------------------------

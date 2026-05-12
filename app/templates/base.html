@@ -29,6 +29,12 @@
                 <a href="{{ url_for('routes.salidas') }}" class="list-group-item list-group-item-action bg-dark text-white border-secondary {% if request.endpoint == 'routes.salidas' %}active{% endif %}">
                     <i class="bi bi-arrow-up-circle me-2"></i>Registrar Salida
                 </a>
+                <a href="{{ url_for('routes.entradas_importar') }}" class="list-group-item list-group-item-action bg-dark text-white border-secondary {% if request.endpoint == 'routes.entradas_importar' %}active{% endif %}">
+                    <i class="bi bi-file-earmark-arrow-up me-2"></i>Importar Entradas (Excel)
+                </a>
+                <a href="{{ url_for('routes.salidas_importar') }}" class="list-group-item list-group-item-action bg-dark text-white border-secondary {% if request.endpoint == 'routes.salidas_importar' %}active{% endif %}">
+                    <i class="bi bi-file-earmark-arrow-down me-2"></i>Importar Salidas (Excel)
+                </a>
                 <a href="{{ url_for('routes.existencias') }}" class="list-group-item list-group-item-action bg-dark text-white border-secondary {% if request.endpoint == 'routes.existencias' %}active{% endif %}">
                     <i class="bi bi-list-check me-2"></i>Existencias
                 </a>

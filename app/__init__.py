@@ -43,11 +43,13 @@ def create_app():
         if database_url.startswith("postgres://"):
             database_url = database_url.replace("postgres://", "postgresql://", 1)
         app.config["SQLALCHEMY_DATABASE_URI"] = database_url
-        app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-            "pool_size": 5,
-            "pool_recycle": 300,
-            "pool_pre_ping": True,
-        }
+        # Pool settings solo para PostgreSQL
+        if not database_url.startswith("sqlite"):
+            app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+                "pool_size": 5,
+                "pool_recycle": 300,
+                "pool_pre_ping": True,
+            }
     else:
         app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{os.path.join(basedir, 'almacen.db')}"
 
