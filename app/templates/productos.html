@@ -20,12 +20,12 @@
     </div>
 </div>
 
-<!-- Búsqueda -->
-<form method="GET" class="mb-3">
+<!-- Búsqueda en vivo -->
+<form method="GET" class="mb-3" id="searchForm">
     <div class="input-group">
         <span class="input-group-text"><i class="bi bi-search"></i></span>
-        <input type="text" name="search" class="form-control" placeholder="Buscar por código, descripción o familia..."
-               value="{{ search }}">
+        <input type="text" name="search" id="searchInput" class="form-control" placeholder="Buscar por código, descripción o familia..."
+               value="{{ search }}" autocomplete="off">
         <button type="submit" class="btn btn-outline-secondary">Buscar</button>
         {% if search %}
         <a href="{{ url_for('routes.productos') }}" class="btn btn-outline-danger">
@@ -35,6 +35,31 @@
     </div>
 </form>
 
+<!-- Resultados de búsqueda en vivo -->
+<div id="productResults" style="display: none;">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>Código</th>
+                    <th>Descripción</th>
+                    <th>U.M.</th>
+                    <th>Familia</th>
+                    <th class="text-center">Stock</th>
+                    <th class="text-end">Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="productResultsBody"></tbody>
+        </table>
+    </div>
+    <div id="productResultsEmpty" class="text-center py-4 text-muted" style="display: none;">
+        <i class="bi bi-inbox display-4"></i>
+        <h6 class="mt-2">Sin resultados</h6>
+    </div>
+</div>
+
+<!-- Tabla normal (se oculta al buscar en vivo) -->
+<div id="productTableView">
 {% if pagination.items %}
 <div class="table-responsive">
     <table class="table table-hover align-middle">
@@ -126,4 +151,71 @@
     </a>
 </div>
 {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const searchInput = document.getElementById('searchInput');
+    const productResults = document.getElementById('productResults');
+    const productResultsBody = document.getElementById('productResultsBody');
+    const productResultsEmpty = document.getElementById('productResultsEmpty');
+    const productTableView = document.getElementById('productTableView');
+    if (!searchInput) return;
+
+    let debounceTimer;
+
+    searchInput.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        const q = this.value.trim();
+        if (q.length === 0) {
+            productResults.style.display = 'none';
+            productTableView.style.display = '';
+            return;
+        }
+        debounceTimer = setTimeout(function() {
+            fetch('/api/productos?q=' + encodeURIComponent(q))
+                .then(r => r.json())
+                .then(data => {
+                    productTableView.style.display = 'none';
+                    productResults.style.display = '';
+                    productResultsBody.innerHTML = '';
+                    productResultsEmpty.style.display = 'none';
+
+                    if (data.results.length === 0) {
+                        productResultsEmpty.style.display = '';
+                        return;
+                    }
+                    data.results.forEach(function(p) {
+                        var acciones = '<a href="/productos/editar/' + p.id + '" class="btn btn-sm btn-outline-primary" title="Editar"><i class="bi bi-pencil"></i></a>' +
+                            '<form method="POST" action="/productos/eliminar/' + p.id + '" style="display:inline;" onsubmit="return confirm(\'¿Eliminar ' + p.codigo + '?\');">' +
+                            '<button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash"></i></button></form>';
+                        var stock = p.stock_actual !== undefined ? parseFloat(p.stock_actual).toFixed(2) : '0.00';
+                        var row = '<tr>' +
+                            '<td><span class="badge bg-secondary">' + escapeHtml(p.codigo) + '</span></td>' +
+                            '<td>' + escapeHtml(p.descripcion || '') + '</td>' +
+                            '<td>' + escapeHtml(p.um || '') + '</td>' +
+                            '<td>' + escapeHtml(p.familia || '—') + '</td>' +
+                            '<td class="text-center">' + stock + '</td>' +
+                            '<td class="text-end">' + acciones + '</td>' +
+                            '</tr>';
+                        productResultsBody.insertAdjacentHTML('beforeend', row);
+                    });
+                })
+                .catch(function() {
+                    productResultsBody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error al buscar productos</td></tr>';
+                });
+        }, 250);
+    });
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(text));
+        return div.innerHTML;
+    }
+})();
+</script>
 {% endblock %}

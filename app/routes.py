@@ -344,6 +344,46 @@ def producto_plantilla():
     )
 
 
+# ---------------------------------------------------------------------------
+# API: Búsqueda en vivo de productos (JSON)
+# ---------------------------------------------------------------------------
+
+@routes_bp.route("/api/productos")
+@login_required
+def api_productos():
+    """Retorna JSON con productos que coinciden con la búsqueda."""
+    q = request.args.get("q", "").strip()
+    limit = request.args.get("limit", 20, type=int)
+
+    query = Producto.query
+    if q:
+        like = f"%{q}%"
+        query = query.filter(
+            Producto.codigo.ilike(like)
+            | Producto.descripcion.ilike(like)
+            | Producto.cod_catalogo.ilike(like)
+            | Producto.familia.ilike(like)
+        )
+    productos = query.order_by(Producto.descripcion.asc()).limit(limit).all()
+
+    return {
+        "results": [
+            {
+                "id": p.id,
+                "codigo": p.codigo,
+                "cod_catalogo": p.cod_catalogo or "",
+                "descripcion": p.descripcion,
+                "um": p.um,
+                "familia": p.familia or "",
+                "stock_actual": p.stock_actual,
+                "stock_minimo": p.stock_minimo,
+            }
+            for p in productos
+        ],
+        "total": len(productos),
+    }
+
+
 HEADERS_PLANTILLA_ENTRADA = [
     "CODIGO", "COD. CATALOGO", "DESCRIPCION DEL PRODUCTO", "CANTIDA",
     "U.M2", "ZONA", "UBICACIÓN", "ALM", "F.INGRESO", "OC", "G.REMISION", "FAMILIA",
@@ -1474,6 +1514,7 @@ def existencias():
     search = request.args.get("search", "").strip()
     familia = request.args.get("familia", "").strip()
     solo_bajo = request.args.get("solo_bajo", "").strip()
+    con_saldo = request.args.get("con_saldo", "1").strip()  # default: solo con saldo
     page = request.args.get("page", 1, type=int)
     per_page = 20
 
@@ -1490,6 +1531,8 @@ def existencias():
             Producto.stock_minimo > 0,
             Producto.stock_actual <= Producto.stock_minimo
         )
+    if con_saldo == "1":
+        query = query.filter(Producto.stock_actual > 0)
 
     query = query.order_by(Producto.descripcion.asc())
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
@@ -1505,6 +1548,7 @@ def existencias():
         search=search,
         familia=familia,
         solo_bajo=solo_bajo,
+        con_saldo=con_saldo,
         familias=familias,
     )
 
@@ -1524,6 +1568,7 @@ def existencias_exportar():
     search = request.args.get("search", "").strip()
     familia = request.args.get("familia", "").strip()
     solo_bajo = request.args.get("solo_bajo", "").strip()
+    con_saldo = request.args.get("con_saldo", "1").strip()
 
     query = Producto.query
     if search:
@@ -1538,6 +1583,8 @@ def existencias_exportar():
             Producto.stock_minimo > 0,
             Producto.stock_actual <= Producto.stock_minimo
         )
+    if con_saldo == "1":
+        query = query.filter(Producto.stock_actual > 0)
     productos = query.order_by(Producto.descripcion.asc()).all()
 
     wb = openpyxl.Workbook()

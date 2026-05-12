@@ -3,7 +3,7 @@
 
 {% block content %}
 <h4 class="mb-4"><i class="bi bi-list-check me-2"></i>Consulta de Existencias
-    <a href="{{ url_for('routes.existencias_exportar', search=search, familia=familia, solo_bajo=solo_bajo) }}"
+    <a href="{{ url_for('routes.existencias_exportar', search=search, familia=familia, solo_bajo=solo_bajo, con_saldo=con_saldo) }}"
        class="btn btn-sm btn-outline-success ms-2" title="Exportar a Excel">
         <i class="bi bi-download"></i> Excel
     </a>
@@ -29,6 +29,12 @@
             </div>
             <div class="col-md-2">
                 <div class="form-check mt-4">
+                    <input type="hidden" name="con_saldo" value="">
+                    <input class="form-check-input" type="checkbox" id="con_saldo" name="con_saldo" value="1"
+                           {{ 'checked' if con_saldo == '1' }}>
+                    <label class="form-check-label small" for="con_saldo">Solo con saldo</label>
+                </div>
+                <div class="form-check mt-1">
                     <input class="form-check-input" type="checkbox" id="solo_bajo" name="solo_bajo" value="1"
                            {{ 'checked' if solo_bajo == '1' }}>
                     <label class="form-check-label small" for="solo_bajo">Solo stock bajo</label>
@@ -98,21 +104,21 @@
 <nav aria-label="Paginación">
     <ul class="pagination justify-content-center">
         <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
-            <a class="page-link" href="{{ url_for('routes.existencias', page=pagination.prev_num, search=search, familia=familia, solo_bajo=solo_bajo) if pagination.has_prev else '#' }}">
+            <a class="page-link" href="{{ url_for('routes.existencias', page=pagination.prev_num, search=search, familia=familia, solo_bajo=solo_bajo, con_saldo=con_saldo) if pagination.has_prev else '#' }}">
                 <i class="bi bi-chevron-left"></i>
             </a>
         </li>
         {% for num in pagination.iter_pages() %}
         {% if num %}
         <li class="page-item {{ 'active' if num == pagination.page }}">
-            <a class="page-link" href="{{ url_for('routes.existencias', page=num, search=search, familia=familia, solo_bajo=solo_bajo) }}">{{ num }}</a>
+            <a class="page-link" href="{{ url_for('routes.existencias', page=num, search=search, familia=familia, solo_bajo=solo_bajo, con_saldo=con_saldo) }}">{{ num }}</a>
         </li>
         {% else %}
         <li class="page-item disabled"><span class="page-link">…</span></li>
         {% endif %}
         {% endfor %}
         <li class="page-item {{ 'disabled' if not pagination.has_next }}">
-            <a class="page-link" href="{{ url_for('routes.existencias', page=pagination.next_num, search=search, familia=familia, solo_bajo=solo_bajo) if pagination.has_next else '#' }}">
+            <a class="page-link" href="{{ url_for('routes.existencias', page=pagination.next_num, search=search, familia=familia, solo_bajo=solo_bajo, con_saldo=con_saldo) if pagination.has_next else '#' }}">
                 <i class="bi bi-chevron-right"></i>
             </a>
         </li>
@@ -126,7 +132,7 @@
     <p>
         {% if search or familia or solo_bajo %}
         No hay resultados con los filtros aplicados.
-        <a href="{{ url_for('routes.existencias') }}">Mostrar todas</a>
+        <a href="{{ url_for('routes.existencias', con_saldo=con_saldo) }}">Mostrar todas</a>
         {% else %}
         No hay productos registrados aún.
         <a href="{{ url_for('routes.producto_nuevo') }}">Crear el primer producto</a>
