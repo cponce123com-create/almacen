@@ -24,6 +24,9 @@
                 <a href="{{ url_for('routes.productos') }}" class="list-group-item list-group-item-action bg-dark text-white border-secondary {% if request.endpoint and request.endpoint.startswith('routes.producto') %}active{% endif %}">
                     <i class="bi bi-box me-2"></i>Productos
                 </a>
+                <a href="{{ url_for('routes.existencias') }}" class="list-group-item list-group-item-action bg-dark text-white border-secondary {% if request.endpoint == 'routes.existencias' %}active{% endif %}">
+                    <i class="bi bi-list-check me-2"></i>Existencias
+                </a>
                 <a href="{{ url_for('routes.entradas') }}" class="list-group-item list-group-item-action bg-dark text-white border-secondary {% if request.endpoint == 'routes.entradas' %}active{% endif %}">
                     <i class="bi bi-arrow-down-circle me-2"></i>Registrar Entrada
                 </a>
@@ -35,9 +38,6 @@
                 </a>
                 <a href="{{ url_for('routes.salidas_importar') }}" class="list-group-item list-group-item-action bg-dark text-white border-secondary {% if request.endpoint == 'routes.salidas_importar' %}active{% endif %}">
                     <i class="bi bi-file-earmark-arrow-down me-2"></i>Importar Salidas (Excel)
-                </a>
-                <a href="{{ url_for('routes.existencias') }}" class="list-group-item list-group-item-action bg-dark text-white border-secondary {% if request.endpoint == 'routes.existencias' %}active{% endif %}">
-                    <i class="bi bi-list-check me-2"></i>Existencias
                 </a>
                 <a href="{{ url_for('routes.historial') }}" class="list-group-item list-group-item-action bg-dark text-white border-secondary {% if request.endpoint == 'routes.historial' %}active{% endif %}">
                     <i class="bi bi-clock-history me-2"></i>Historial
