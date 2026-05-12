@@ -47,6 +47,8 @@
                                 {% for h in headers %}
                                 <th>{{ h }}</th>
                                 {% endfor %}
+                                <th>GUÍA REMISIÓN</th>
+                                <th>FAMILIA</th>
                                 <th class="text-center">PRODUCTO</th>
                             </tr>
                         </thead>
@@ -60,6 +62,8 @@
                                 <td>{{ f.ubicacion or '—' }}</td>
                                 <td>{{ f.alm or '—' }}</td>
                                 <td>{{ f.oc or '—' }}</td>
+                                <td>{{ f.guia or '—' }}</td>
+                                <td>{{ f.familia or '—' }}</td>
                                 <td class="small">{{ f.fecha.strftime('%d/%m/%Y') if f.fecha else '—' }}</td>
                             </tr>
                             {% endfor %}

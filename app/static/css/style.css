@@ -169,3 +169,82 @@
     content: "\\2713 ";
     font-weight: bold;
 }
+
+/* === OPTIMIZACIÓN MÓVIL === */
+@media (max-width: 576px) {
+    .sidebar-heading .d-block {
+        font-size: 0.7rem !important;
+    }
+    .container-fluid.p-4 {
+        padding: 0.75rem !important;
+    }
+    .card-body.p-4 {
+        padding: 1rem !important;
+    }
+    .table {
+        font-size: 0.8rem;
+    }
+    .table .btn-sm {
+        padding: 0.15rem 0.3rem;
+        font-size: 0.7rem;
+    }
+    .badge {
+        font-size: 0.7rem;
+    }
+    h3, h4 {
+        font-size: 1.2rem !important;
+    }
+    h5 {
+        font-size: 1rem !important;
+    }
+    .drop-zone {
+        padding: 1.5rem !important;
+    }
+    .drop-zone .display-3 {
+        font-size: 2.5rem;
+    }
+    .drop-zone h5 {
+        font-size: 0.95rem;
+    }
+    .navbar-brand {
+        font-size: 0.9rem;
+    }
+    /* Botones de acciones rápidas en dashboard */
+    .d-flex.gap-2.flex-wrap .btn {
+        font-size: 0.8rem;
+        padding: 0.3rem 0.6rem;
+    }
+    /* Input groups más compactos */
+    .input-group-text {
+        padding: 0.3rem 0.5rem;
+    }
+}
+
+@media (max-width: 767.98px) {
+    #sidebar-wrapper {
+        width: 220px !important;
+    }
+    #sidebar-wrapper .list-group-item {
+        font-size: 0.85rem;
+        padding: 0.5rem 0.8rem;
+    }
+    #sidebar-wrapper .list-group-item i {
+        font-size: 0.9rem;
+    }
+    .table-responsive {
+        font-size: 0.78rem;
+    }
+    /* Tarjetas de resumen más pequeñas */
+    .text-bg-primary .card-body,
+    .text-bg-success .card-body,
+    .text-bg-warning .card-body,
+    .text-bg-danger .card-body {
+        padding: 0.75rem;
+    }
+    .text-bg-primary h2,
+    .text-bg-success h2,
+    .text-bg-warning h2,
+    .text-bg-danger h2 {
+        font-size: 1.3rem;
+    }
+}

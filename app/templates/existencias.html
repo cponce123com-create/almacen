@@ -66,6 +66,7 @@
                 <th class="text-center">Stock Mínimo</th>
                 <th>U.M.</th>
                 <th>Estado</th>
+                <th class="text-end">Acciones</th>
             </tr>
         </thead>
         <tbody>
@@ -93,6 +94,11 @@
                     {% else %}
                     <span class="badge bg-success">OK</span>
                     {% endif %}
+                </td>
+                <td class="text-end">
+                    <a href="{{ url_for('routes.producto_editar', producto_id=p.id) }}" class="btn btn-sm btn-outline-primary" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </a>
                 </td>
             </tr>
             {% endfor %}

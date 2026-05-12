@@ -1692,40 +1692,96 @@ def historial():
         except ValueError:
             pass
 
-    if tipo != "SALIDA":
-        for e in entradas_query.all():
-            movimientos.append({
-                "id": f"E-{e.id}",
-                "tipo": "ENTRADA",
-                "fecha": e.fecha_ingreso,
-                "producto": e.producto.descripcion if e.producto else "—",
-                "codigo": e.producto.codigo if e.producto else "—",
-                "cantidad": e.cantidad,
-                "um": e.um,
-                "referencia": e.oc or e.guia_remision or "—",
-                "detalle": f"OC: {e.oc}, Guía: {e.guia_remision}, Zona: {e.zona}, Ubic: {e.ubicacion}",
-            })
-    if tipo != "ENTRADA":
-        for s in salidas_query.all():
-            movimientos.append({
-                "id": f"S-{s.id}",
-                "tipo": "SALIDA",
-                "fecha": s.fecha_salida,
-                "producto": s.producto.descripcion if s.producto else "—",
-                "codigo": s.producto.codigo if s.producto else "—",
-                "cantidad": s.cantidad,
-                "um": s.um,
-                "referencia": s.nro_vale or s.oi or "—",
-                "detalle": f"Vale: {s.nro_vale}, OI: {s.oi}, C.Costo: {s.c_costo}, Máq: {s.maquina}",
-            })
+    # Paginación directa en BD con UNION ALL
+    from sqlalchemy import literal_column, union_all
 
-    movimientos.sort(key=lambda m: m["fecha"], reverse=True)
+    if tipo == "SALIDA":
+        pag = salidas_query.order_by(Salida.fecha_salida.desc()).paginate(page=page, per_page=per_page, error_out=False)
+        movimientos_paginados = []
+        for s in pag.items:
+            if s.producto:
+                movimientos_paginados.append({
+                    "id": f"S-{s.id}",
+                    "tipo": "SALIDA",
+                    "fecha": s.fecha_salida,
+                    "producto": s.producto.descripcion,
+                    "codigo": s.producto.codigo,
+                    "cantidad": s.cantidad,
+                    "um": s.um,
+                    "referencia": s.nro_vale or s.oi or "—",
+                    "detalle": f"Vale: {s.nro_vale}, OI: {s.oi}, C.Costo: {s.c_costo}, Máq: {s.maquina}",
+                })
+        total = pag.total
+    elif tipo == "ENTRADA":
+        pag = entradas_query.order_by(Entrada.fecha_ingreso.desc()).paginate(page=page, per_page=per_page, error_out=False)
+        movimientos_paginados = []
+        for e in pag.items:
+            if e.producto:
+                movimientos_paginados.append({
+                    "id": f"E-{e.id}",
+                    "tipo": "ENTRADA",
+                    "fecha": e.fecha_ingreso,
+                    "producto": e.producto.descripcion,
+                    "codigo": e.producto.codigo,
+                    "cantidad": e.cantidad,
+                    "um": e.um,
+                    "referencia": e.oc or e.guia_remision or "—",
+                    "detalle": f"OC: {e.oc}, Guía: {e.guia_remision}, Zona: {e.zona}, Ubic: {e.ubicacion}",
+                })
+        total = pag.total
+    else:
+        # UNION ALL para paginación combinada
+        from sqlalchemy import text as sa_text
 
-    # Paginación manual
-    total = len(movimientos)
-    start = (page - 1) * per_page
-    end = start + per_page
-    movimientos_paginados = movimientos[start:end]
+        e_q = entradas_query.with_entities(
+            literal_column("'E'").label('src'),
+            Entrada.id.label('id'),
+            Entrada.fecha_ingreso.label('fecha')
+        )
+        s_q = salidas_query.with_entities(
+            literal_column("'S'").label('src'),
+            Salida.id.label('id'),
+            Salida.fecha_salida.label('fecha')
+        )
+
+        union_q = e_q.union_all(s_q)
+
+        # Total combinado
+        total = db.session.query(db.func.count()).select_from(union_q.subquery()).scalar() or 0
+
+        # Paginación ordenada por fecha
+        paginated = union_q.order_by(sa_text('fecha DESC')).limit(per_page).offset((page - 1) * per_page).all()
+
+        movimientos_paginados = []
+        for src, mov_id, _ in paginated:
+            if src == 'E':
+                e = db.session.get(Entrada, mov_id)
+                if e and e.producto:
+                    movimientos_paginados.append({
+                        "id": f"E-{e.id}",
+                        "tipo": "ENTRADA",
+                        "fecha": e.fecha_ingreso,
+                        "producto": e.producto.descripcion,
+                        "codigo": e.producto.codigo,
+                        "cantidad": e.cantidad,
+                        "um": e.um,
+                        "referencia": e.oc or e.guia_remision or "—",
+                        "detalle": f"OC: {e.oc}, Guía: {e.guia_remision}, Zona: {e.zona}, Ubic: {e.ubicacion}",
+                    })
+            else:
+                s = db.session.get(Salida, mov_id)
+                if s and s.producto:
+                    movimientos_paginados.append({
+                        "id": f"S-{s.id}",
+                        "tipo": "SALIDA",
+                        "fecha": s.fecha_salida,
+                        "producto": s.producto.descripcion,
+                        "codigo": s.producto.codigo,
+                        "cantidad": s.cantidad,
+                        "um": s.um,
+                        "referencia": s.nro_vale or s.oi or "—",
+                        "detalle": f"Vale: {s.nro_vale}, OI: {s.oi}, C.Costo: {s.c_costo}, Máq: {s.maquina}",
+                    })
 
     # Objeto de paginación simple
     class SimplePagination:

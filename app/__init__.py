@@ -79,8 +79,7 @@ def create_app():
 
         # Activar PRAGMA optimizados para SQLite (WAL mode = mejor concurrencia)
         if "sqlite" in app.config["SQLALCHEMY_DATABASE_URI"]:
-            engine = db.get_engine()
-            sa_event.listen(engine, "connect", _sqlite_connect_pragma)
+            sa_event.listen(db.engine, "connect", _sqlite_connect_pragma)
 
     return app
 
