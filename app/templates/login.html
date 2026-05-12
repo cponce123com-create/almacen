@@ -1,20 +1,195 @@
 {% extends "base.html" %}
-{% block title %}Iniciar Sesión - Almacén{% endblock %}
+{% block title %}Almacenero - Iniciar Sesión{% endblock %}
 
 {% block auth_content %}
-<div class="d-flex justify-content-center align-items-center vh-100 bg-light">
-    <div class="card shadow" style="width: 100%; max-width: 400px;">
+<style>
+/* === FONDO AZUL ACERO CON TRAMA === */
+.login-bg {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    background:
+        linear-gradient(135deg, #3a6b8f 0%, #4f8db3 30%, #6ba3c9 60%, #4a7d9e 100%);
+}
+
+/* Trama de acero (brushed metal) */
+.login-bg::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 2px,
+            rgba(255,255,255,0.03) 2px,
+            rgba(255,255,255,0.03) 4px
+        ),
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 4px,
+            rgba(255,255,255,0.02) 4px,
+            rgba(255,255,255,0.02) 5px
+        ),
+        radial-gradient(circle at 30% 40%, rgba(255,255,255,0.08) 0%, transparent 50%),
+        radial-gradient(circle at 70% 60%, rgba(0,0,0,0.06) 0%, transparent 50%);
+    z-index: 0;
+}
+
+/* Partículas de soldadura — 8 chispas */
+.spark {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #ffd700;
+    box-shadow: 0 0 6px 2px #ff8c00, 0 0 12px 4px rgba(255,140,0,0.3);
+    z-index: 1;
+    pointer-events: none;
+    animation: sparkFloat linear infinite;
+    opacity: 0;
+}
+
+.spark:nth-child(1)  { left: 10%; top: 20%; animation-duration: 3.2s; animation-delay: 0.0s; width: 5px; height: 5px; }
+.spark:nth-child(2)  { left: 25%; top: 50%; animation-duration: 4.1s; animation-delay: 1.2s; width: 3px; height: 3px; }
+.spark:nth-child(3)  { left: 45%; top: 15%; animation-duration: 3.7s; animation-delay: 0.8s; width: 4px; height: 4px; }
+.spark:nth-child(4)  { left: 60%; top: 60%; animation-duration: 4.5s; animation-delay: 2.1s; width: 6px; height: 6px; }
+.spark:nth-child(5)  { left: 75%; top: 30%; animation-duration: 3.9s; animation-delay: 0.5s; width: 3px; height: 3px; }
+.spark:nth-child(6)  { left: 85%; top: 70%; animation-duration: 4.3s; animation-delay: 1.8s; width: 5px; height: 5px; }
+.spark:nth-child(7)  { left: 50%; top: 80%; animation-duration: 3.5s; animation-delay: 2.5s; width: 3px; height: 3px; }
+.spark:nth-child(8)  { left: 35%; top: 40%; animation-duration: 4.8s; animation-delay: 1.5s; width: 4px; height: 4px; }
+
+@keyframes sparkFloat {
+    0%   { transform: translateY(0) scale(1); opacity: 0; }
+    10%  { opacity: 0.9; }
+    30%  { transform: translateY(-30px) translateX(15px) scale(1.3); opacity: 0.8; }
+    50%  { transform: translateY(-60px) translateX(-10px) scale(0.7); opacity: 0.5; }
+    70%  { transform: translateY(-90px) translateX(20px) scale(0.4); opacity: 0.3; }
+    100% { transform: translateY(-130px) translateX(-5px) scale(0); opacity: 0; }
+}
+
+/* Destellos ocasionales (flash de soldadura) */
+.flash {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,215,0,0.15), transparent);
+    z-index: 1;
+    pointer-events: none;
+    animation: flashPulse 4s ease-in-out infinite;
+}
+.flash:nth-child(9)  { left: 20%; top: 30%; width: 120px; height: 120px; animation-delay: 0.5s; }
+.flash:nth-child(10) { left: 65%; top: 55%; width: 100px; height: 100px; animation-delay: 2.3s; }
+
+@keyframes flashPulse {
+    0%, 100% { opacity: 0; transform: scale(0.5); }
+    50%      { opacity: 1; transform: scale(1.3); }
+}
+
+/* Card con glassmorphism */
+.login-card {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: 400px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 1rem;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3), 0 0 40px rgba(70, 130, 180, 0.15);
+}
+
+.logo-container {
+    width: 72px;
+    height: 72px;
+    margin: 0 auto 0.5rem;
+}
+
+.logo-container svg {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 4px 8px rgba(13, 110, 253, 0.3));
+}
+
+/* Inputs con estilo steel */
+.login-card .form-control:focus {
+    border-color: #4f8db3;
+    box-shadow: 0 0 0 0.25rem rgba(79, 141, 179, 0.25);
+}
+
+.login-card .input-group-text {
+    background: #f0f4f8;
+    border-color: #d0d8e0;
+    color: #4a7d9e;
+}
+
+.login-card .btn-primary {
+    background: linear-gradient(135deg, #3a6b8f, #4f8db3);
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.login-card .btn-primary:hover {
+    background: linear-gradient(135deg, #2d5a7a, #3a7fa8);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(79, 141, 179, 0.4);
+}
+
+/* Etiqueta de versión / administrador */
+.login-footer {
+    color: rgba(255,255,255,0.6);
+    font-size: 0.8rem;
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    margin-top: 1rem;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.login-footer strong {
+    color: rgba(255,255,255,0.9);
+}
+</style>
+
+<div class="login-bg">
+    <!-- Chispas -->
+    <div class="spark"></div><div class="spark"></div><div class="spark"></div>
+    <div class="spark"></div><div class="spark"></div><div class="spark"></div>
+    <div class="spark"></div><div class="spark"></div>
+    <!-- Destellos -->
+    <div class="flash"></div><div class="flash"></div>
+
+    <div class="login-card">
         <div class="card-body p-4">
-            <div class="text-center mb-4">
-                <i class="bi bi-box-seam display-4 text-primary"></i>
-                <h3 class="mt-2">Control de Almacén</h3>
-                <p class="text-muted">Inicia sesión para continuar</p>
+            <div class="text-center mb-3">
+                <div class="logo-container">
+                    <svg viewBox="0 0 64 64">
+                        <g transform="translate(32,32)" fill="#222" stroke="#222" stroke-width="1.5">
+                            <rect x="-4" y="-28" width="8" height="16" rx="1" />
+                            <rect x="-4" y="-28" width="8" height="16" rx="1" transform="rotate( 45)"/>
+                            <rect x="-4" y="-28" width="8" height="16" rx="1" transform="rotate( 90)"/>
+                            <rect x="-4" y="-28" width="8" height="16" rx="1" transform="rotate(135)"/>
+                            <rect x="-4" y="-28" width="8" height="16" rx="1" transform="rotate(180)"/>
+                            <rect x="-4" y="-28" width="8" height="16" rx="1" transform="rotate(225)"/>
+                            <rect x="-4" y="-28" width="8" height="16" rx="1" transform="rotate(270)"/>
+                            <rect x="-4" y="-28" width="8" height="16" rx="1" transform="rotate(315)"/>
+                            <circle r="18" fill="none" stroke="#222" stroke-width="3"/>
+                        </g>
+                        <circle cx="32" cy="32" r="14" fill="#0D6EFD"/>
+                        <text x="32" y="40" text-anchor="middle" font-family="Arial,sans-serif"
+                              font-size="24" font-weight="bold" fill="white">A</text>
+                    </svg>
+                </div>
+                <h3 class="fw-bold" style="color: #2d5a7a;">Almacenero</h3>
+                <p class="text-secondary small">Control de Inventarios</p>
             </div>
 
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
             {% for category, message in messages %}
-            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            <div class="alert alert-{{ category }} alert-dismissible fade show py-2" role="alert">
                 {{ message }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
             </div>
@@ -24,29 +199,29 @@
 
             <form method="POST">
                 <div class="mb-3">
-                    <label for="username" class="form-label">Usuario</label>
+                    <label for="username" class="form-label small fw-semibold text-secondary">Usuario</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-person"></i></span>
                         <input type="text" class="form-control" id="username" name="username"
-                               placeholder="usuario o correo" required autofocus>
+                               placeholder="Ingresa tu usuario" required autofocus>
                     </div>
                 </div>
                 <div class="mb-3">
-                    <label for="password" class="form-label">Contraseña</label>
+                    <label for="password" class="form-label small fw-semibold text-secondary">Contraseña</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="bi bi-lock"></i></span>
                         <input type="password" class="form-control" id="password" name="password"
                                placeholder="••••••" required>
                     </div>
                 </div>
-                <button type="submit" class="btn btn-primary w-100">
+                <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
                     <i class="bi bi-box-arrow-in-right me-1"></i>Ingresar
                 </button>
             </form>
-            <p class="text-muted text-center mt-3 mb-0 small">
-                Administrador: <strong>cponce123.com@gmail.com</strong>
-            </p>
         </div>
+    </div>
+    <div class="login-footer">
+        Administrador: <strong>Escamander</strong> &nbsp;·&nbsp; v2.0
     </div>
 </div>
 {% endblock %}
