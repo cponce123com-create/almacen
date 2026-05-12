@@ -337,7 +337,7 @@ def producto_plantilla():
 # Ruta: Importar productos desde Excel (con previsualización)
 # ---------------------------------------------------------------------------
 
-MAX_IMPORT_ROWS = 1000
+MAX_IMPORT_ROWS = 5000
 """Número máximo de filas permitidas en una importación."""
 
 
