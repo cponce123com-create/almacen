@@ -410,8 +410,7 @@ def _parse_excel(file):
             continue
 
         descripcion = _excel_val(excel_row, col_indices, "descripcion")
-        if not descripcion:
-            continue
+
 
         # Detectar duplicados internos
         if codigo in codigos_vistos:
@@ -579,8 +578,7 @@ def producto_importar_confirmar():
             familia = _sanitize_field(f["familia"], "familia")
 
             if not descripcion:
-                errores_db.append(f"'{codigo}': descripción vacía")
-                continue
+                pass  # se permite importar sin descripción, se editará después
 
             producto = Producto.query.filter_by(codigo=codigo).first()
             if producto:
