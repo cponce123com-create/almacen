@@ -162,7 +162,8 @@ def producto_eliminar(producto_id):
 # ---------------------------------------------------------------------------
 
 HEADERS_MAESTRA = [
-    "CODIGO", "COD. CATALOGO", "DESCRIPCION DEL PRODUCTO", "U.M", "FAMILIA"
+    "CODIGO", "COD. CATALOGO", "DESCRIPCION DEL PRODUCTO", "U.M", "FAMILIA",
+    "STOCK MINIMO",
 ]
 
 COL_MAP = {
@@ -177,8 +178,69 @@ COL_MAP = {
     "UM": "um",
     "U.M.": "um",
     "FAMILIA": "familia",
+    "STOCK MINIMO": "stock_minimo",
+    "STOCK MÍNIMO": "stock_minimo",
+    "STOCK_MINIMO": "stock_minimo",
 }
 
+# Límites máximos según modelos.py
+FIELD_MAXLEN = {
+    "codigo": 50,
+    "cod_catalogo": 50,
+    "descripcion": 300,
+    "um": 20,
+    "familia": 100,
+    "zona": 50,
+    "ubicacion": 100,
+    "alm": 50,
+    "oc": 50,
+    "guia_remision": 50,
+    "nro_vale": 50,
+    "oi": 50,
+    "c_costo": 100,
+    "maquina": 100,
+    "categoria": 100,
+}
+
+# ---------------------------------------------------------------------------
+# Helpers para Excel
+# ---------------------------------------------------------------------------
+
+
+def _excel_val(row, col_indices, col_name):
+    """Extraer valor de una celda Excel, normalizado a string."""
+    idx = col_indices.get(col_name)
+    if idx is None or idx >= len(row):
+        return ""
+    v = row[idx]
+    if v is None:
+        return ""
+    # Si es datetime, formatear como fecha
+    if isinstance(v, (datetime,)):
+        return v.strftime("%Y-%m-%d")
+    if isinstance(v, (int, float)):
+        # Convertir número a string sin decimales si es entero
+        if v == int(v):
+            return str(int(v))
+        return str(v).replace(",", ".")
+    return str(v).strip()
+
+
+def _sanitize_field(valor, field_name):
+    """Truncar un campo a su longitud máxima definida."""
+    maxlen = FIELD_MAXLEN.get(field_name, 300)
+    return str(valor).strip()[:maxlen] if valor else ""
+
+
+def _make_excel_workbook():
+    """Crear workbook con openpyxl y devolver hoja activa."""
+    import openpyxl
+    return openpyxl.Workbook()
+
+
+# ---------------------------------------------------------------------------
+# Ruta: Descargar plantilla
+# ---------------------------------------------------------------------------
 
 @routes_bp.route("/productos/plantilla")
 @login_required
@@ -187,6 +249,7 @@ def producto_plantilla():
     try:
         import openpyxl
         from openpyxl.styles import Font, PatternFill, Alignment
+        from openpyxl.utils import get_column_letter
     except ImportError:
         flash("openpyxl no está instalado.", "danger")
         return redirect(url_for("routes.productos"))
@@ -195,7 +258,6 @@ def producto_plantilla():
     ws = wb.active
     ws.title = "MAESTRA"
 
-    # Encabezados con estilo
     header_font = Font(bold=True, color="FFFFFF", size=11)
     header_fill = PatternFill(start_color="0D6EFD", end_color="0D6EFD", fill_type="solid")
     header_align = Alignment(horizontal="center", vertical="center")
@@ -206,19 +268,16 @@ def producto_plantilla():
         cell.fill = header_fill
         cell.alignment = header_align
 
-    # Ajustar ancho de columnas
-    widths = [12, 14, 50, 10, 20]
+    widths = [12, 14, 50, 10, 20, 14]
     for i, w in enumerate(widths, 1):
-        ws.column_dimensions[chr(64 + i)].width = w
+        ws.column_dimensions[get_column_letter(i)].width = w
 
-    # Fila de ejemplo (comentada como referencia)
-    ws.cell(row=2, column=1, value="(Ej: P001)")
-    ws.cell(row=2, column=2, value="(Ej: CAT-001)")
-    ws.cell(row=2, column=3, value="(Ej: Tornillo M8x30)")
-    ws.cell(row=2, column=4, value="(Ej: UND)")
-    ws.cell(row=2, column=5, value="(Ej: FERRETERIA)")
-    for col in range(1, 6):
-        ws.cell(row=2, column=col).font = Font(italic=True, color="888888")
+    # Fila de ejemplo
+    ejemplo = ["(Ej: P001)", "(Ej: CAT-001)", "(Ej: Tornillo M8x30)",
+               "(Ej: UND)", "(Ej: FERRETERIA)", "(Ej: 10)"]
+    for col_idx, val in enumerate(ejemplo, 1):
+        cell = ws.cell(row=2, column=col_idx, value=val)
+        cell.font = Font(italic=True, color="888888")
 
     output = io.BytesIO()
     wb.save(output)
@@ -232,20 +291,30 @@ def producto_plantilla():
     )
 
 
+# ---------------------------------------------------------------------------
+# Ruta: Importar productos desde Excel
+# ---------------------------------------------------------------------------
+
 @routes_bp.route("/productos/importar", methods=["GET", "POST"])
 @login_required
 def producto_importar():
-    """Importar productos desde un archivo Excel con estructura MAESTRA."""
+    """Importar productos desde archivo Excel.
+    
+    Crea los que no existen, actualiza los existentes.
+    Maneja duplicados internos, truncado de campos y transacción atómica.
+    """
     if request.method == "POST":
+        # --- Validación del archivo ---
         if "archivo" not in request.files:
             flash("No se seleccionó ningún archivo.", "danger")
             return redirect(url_for("routes.producto_importar"))
 
         file = request.files["archivo"]
-        if file.filename == "":
+        if not file or file.filename == "":
             flash("No se seleccionó ningún archivo.", "danger")
             return redirect(url_for("routes.producto_importar"))
 
+        # Aceptar .xlsx y .xls (openpyxl maneja ambos)
         if not file.filename.lower().endswith((".xlsx", ".xls")):
             flash("El archivo debe ser .xlsx o .xls.", "danger")
             return redirect(url_for("routes.producto_importar"))
@@ -259,49 +328,101 @@ def producto_importar():
         try:
             wb = openpyxl.load_workbook(file, data_only=True)
             ws = wb.active
+        except Exception:
+            flash("El archivo no es un Excel válido o está corrupto.", "danger")
+            return redirect(url_for("routes.producto_importar"))
 
-            # Leer encabezados del Excel
-            headers_raw = [str(cell.value or "").strip().upper() for cell in ws[1]]
+        # --- Leer encabezados ---
+        first_row = list(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+        if not first_row or not any(c is not None for c in first_row[0]):
+            flash("El archivo Excel está vacío.", "danger")
+            return redirect(url_for("routes.producto_importar"))
 
-            # Mapear columnas encontradas
-            col_indices = {}
-            for i, h in enumerate(headers_raw):
-                for key, val in COL_MAP.items():
-                    if key.upper() == h:
-                        col_indices[val] = i
-                        break
+        headers_raw = []
+        for cell_val in first_row[0]:
+            s = str(cell_val).strip().upper() if cell_val is not None else ""
+            headers_raw.append(s)
 
-            if "codigo" not in col_indices:
-                flash("El Excel no tiene una columna 'CODIGO' reconocible.", "danger")
-                return redirect(url_for("routes.producto_importar"))
+        # Mapear columnas encontradas
+        col_indices = {}
+        for i, h in enumerate(headers_raw):
+            for key, mapped in COL_MAP.items():
+                if key.upper() == h:
+                    col_indices[mapped] = i
+                    break
 
-            creados = 0
-            actualizados = 0
-            errores = 0
+        if "codigo" not in col_indices:
+            flash("El Excel no tiene una columna 'CODIGO' reconocible. "
+                  "Columnas encontradas: " + ", ".join(h for h in headers_raw if h), "danger")
+            return redirect(url_for("routes.producto_importar"))
 
-            for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), 2):
-                if not any(cell is not None for cell in row):
-                    continue  # saltar filas vacías
+        # --- Leer filas y validar duplicados internos ---
+        filas = []
+        codigos_vistos = set()
+        errores_duplicados = 0
 
-                def val(col_name):
-                    idx = col_indices.get(col_name)
-                    if idx is None or idx >= len(row):
-                        return ""
-                    v = row[idx]
-                    return str(v).strip() if v is not None else ""
+        for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), 2):
+            if not any(cell is not None for cell in row):
+                continue
 
-                codigo = val("codigo").upper()
-                if not codigo:
-                    continue
+            codigo = _excel_val(row, col_indices, "codigo").upper()
+            if not codigo:
+                continue
 
-                descripcion = val("descripcion")
+            descripcion = _excel_val(row, col_indices, "descripcion")
+            if not descripcion:
+                errores_duplicados += 1  # se cuenta como error
+                continue
+
+            # Detectar duplicados DENTRO del mismo Excel
+            if codigo in codigos_vistos:
+                errores_duplicados += 1
+                continue
+            codigos_vistos.add(codigo)
+
+            cod_catalogo = _excel_val(row, col_indices, "cod_catalogo")
+            um = _excel_val(row, col_indices, "um").upper() or "UND"
+            familia = _excel_val(row, col_indices, "familia")
+
+            # Leer stock_minimo si existe la columna
+            stock_minimo = 0.0
+            if "stock_minimo" in col_indices:
+                raw_stock = _excel_val(row, col_indices, "stock_minimo")
+                try:
+                    stock_minimo = max(0.0, float(raw_stock.replace(",", ".")))
+                except (ValueError, AttributeError):
+                    stock_minimo = 0.0
+
+            filas.append({
+                "codigo": codigo,
+                "cod_catalogo": cod_catalogo,
+                "descripcion": descripcion,
+                "um": um,
+                "familia": familia,
+                "stock_minimo": stock_minimo,
+            })
+
+        if not filas:
+            flash("No se encontraron filas válidas para importar.", "warning")
+            return redirect(url_for("routes.producto_importar"))
+
+        # --- Ejecutar importación en transacción atómica ---
+        creados = 0
+        actualizados = 0
+        errores_db = 0
+
+        try:
+            for f in filas:
+                # Sanitizar campos
+                codigo = _sanitize_field(f["codigo"], "codigo")
+                descripcion = _sanitize_field(f["descripcion"], "descripcion")
+                cod_catalogo = _sanitize_field(f["cod_catalogo"], "cod_catalogo")
+                um = _sanitize_field(f["um"], "um") or "UND"
+                familia = _sanitize_field(f["familia"], "familia")
+
                 if not descripcion:
-                    errores += 1
+                    errores_db += 1
                     continue
-
-                cod_catalogo = val("cod_catalogo")
-                um = val("um").upper() or "UND"
-                familia = val("familia")
 
                 producto = Producto.query.filter_by(codigo=codigo).first()
                 if producto:
@@ -309,6 +430,8 @@ def producto_importar():
                     producto.descripcion = descripcion
                     producto.um = um
                     producto.familia = familia
+                    if "stock_minimo" in col_indices:
+                        producto.stock_minimo = f["stock_minimo"]
                     actualizados += 1
                 else:
                     producto = Producto(
@@ -317,23 +440,31 @@ def producto_importar():
                         descripcion=descripcion,
                         um=um,
                         familia=familia,
+                        stock_minimo=f["stock_minimo"] if "stock_minimo" in col_indices else 0.0,
                     )
                     db.session.add(producto)
                     creados += 1
 
             db.session.commit()
-            flash(
-                f"Importación completada: {creados} creados, {actualizados} actualizados, {errores} errores.",
-                "success" if errores == 0 else "warning",
-            )
+            total_errores = errores_duplicados + errores_db
+            msg = f"Importación completada: {creados} creados, {actualizados} actualizados"
+            if total_errores:
+                msg += f", {total_errores} errores (duplicados omitidos)"
+            flash(msg, "success" if total_errores == 0 else "warning")
             return redirect(url_for("routes.productos"))
 
-        except Exception as e:
-            flash(f"Error al leer el archivo: {str(e)}", "danger")
+        except Exception:
+            db.session.rollback()
+            flash("Error de base de datos durante la importación. "
+                  "No se guardaron cambios. Verifica que los datos sean válidos.", "danger")
             return redirect(url_for("routes.producto_importar"))
 
     return render_template("producto_importar.html")
 
+
+# ---------------------------------------------------------------------------
+# Ruta: Exportar productos a Excel
+# ---------------------------------------------------------------------------
 
 @routes_bp.route("/productos/exportar")
 @login_required
@@ -342,6 +473,7 @@ def producto_exportar():
     try:
         import openpyxl
         from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
     except ImportError:
         flash("openpyxl no está instalado.", "danger")
         return redirect(url_for("routes.productos"))
@@ -350,17 +482,17 @@ def producto_exportar():
     ws = wb.active
     ws.title = "MAESTRA"
 
-    # Encabezados
-    headers = ["CODIGO", "COD. CATALOGO", "DESCRIPCION DEL PRODUCTO",
-               "U.M", "FAMILIA", "STOCK ACTUAL", "STOCK MINIMO"]
+    headers = [
+        "CODIGO", "COD. CATALOGO", "DESCRIPCION DEL PRODUCTO",
+        "U.M", "FAMILIA", "STOCK ACTUAL", "STOCK MINIMO"
+    ]
+
     header_font = Font(bold=True, color="FFFFFF", size=11)
     header_fill = PatternFill(start_color="0D6EFD", end_color="0D6EFD", fill_type="solid")
     header_align = Alignment(horizontal="center", vertical="center")
     thin_border = Border(
-        left=Side(style="thin"),
-        right=Side(style="thin"),
-        top=Side(style="thin"),
-        bottom=Side(style="thin"),
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"), bottom=Side(style="thin"),
     )
 
     for col_idx, header in enumerate(headers, 1):
@@ -370,27 +502,19 @@ def producto_exportar():
         cell.alignment = header_align
         cell.border = thin_border
 
-    # Datos
     productos = Producto.query.order_by(Producto.codigo.asc()).all()
     for row_idx, p in enumerate(productos, 2):
         values = [
-            p.codigo,
-            p.cod_catalogo,
-            p.descripcion,
-            p.um,
-            p.familia,
-            p.stock_actual,
-            p.stock_minimo,
+            p.codigo, p.cod_catalogo, p.descripcion,
+            p.um, p.familia, p.stock_actual, p.stock_minimo,
         ]
         for col_idx, val in enumerate(values, 1):
             cell = ws.cell(row=row_idx, column=col_idx, value=val)
             cell.border = thin_border
 
-    # Anchos
     widths = [12, 14, 55, 10, 22, 14, 14]
     for i, w in enumerate(widths, 1):
-        col_letter = ws.cell(row=1, column=i).column_letter
-        ws.column_dimensions[col_letter].width = w
+        ws.column_dimensions[get_column_letter(i)].width = w
 
     output = io.BytesIO()
     wb.save(output)
@@ -405,7 +529,6 @@ def producto_exportar():
         as_attachment=True,
         download_name=f"productos_{today}.xlsx",
     )
-
 
 def _producto_form(producto=None):
     if request.method == "POST":
