@@ -904,6 +904,75 @@ def existencias():
     )
 
 
+@routes_bp.route("/existencias/exportar")
+@login_required
+def existencias_exportar():
+    """Exportar existencias filtradas a Excel."""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        flash("openpyxl no está instalado.", "danger")
+        return redirect(url_for("routes.existencias"))
+
+    search = request.args.get("search", "").strip()
+    familia = request.args.get("familia", "").strip()
+    solo_bajo = request.args.get("solo_bajo", "").strip()
+
+    query = Producto.query
+    if search:
+        query = query.filter(
+            Producto.descripcion.ilike(f"%{search}%")
+            | Producto.codigo.ilike(f"%{search}%")
+        )
+    if familia:
+        query = query.filter(Producto.familia.ilike(f"%{familia}%"))
+    if solo_bajo == "1":
+        query = query.filter(
+            Producto.stock_minimo > 0,
+            Producto.stock_actual <= Producto.stock_minimo
+        )
+    productos = query.order_by(Producto.descripcion.asc()).all()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "EXISTENCIAS"
+
+    headers = ["CÓDIGO", "COD. CATÁLOGO", "DESCRIPCIÓN", "U.M",
+               "FAMILIA", "STOCK ACTUAL", "STOCK MÍNIMO", "ESTADO"]
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="0D6EFD", end_color="0D6EFD", fill_type="solid")
+    thin_border = Border(
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"), bottom=Side(style="thin"),
+    )
+
+    for ci, h in enumerate(headers, 1):
+        c = ws.cell(row=1, column=ci, value=h)
+        c.font = header_font; c.fill = header_fill; c.border = thin_border
+
+    for ri, p in enumerate(productos, 2):
+        estado = "STOCK BAJO" if (p.stock_bajo and p.stock_minimo > 0) else \
+                 "SIN STOCK" if p.stock_actual == 0 else "OK"
+        vals = [p.codigo, p.cod_catalogo, p.descripcion, p.um,
+                p.familia, p.stock_actual, p.stock_minimo, estado]
+        for ci, v in enumerate(vals, 1):
+            c = ws.cell(row=ri, column=ci, value=v)
+            c.border = thin_border
+
+    widths = [12, 14, 55, 10, 22, 14, 14, 14]
+    for i, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    output = io.BytesIO()
+    wb.save(output); output.seek(0)
+    from datetime import date
+    return send_file(output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True, download_name=f"existencias_{date.today().strftime('%Y%m%d')}.xlsx")
+
+
 # ---------------------------------------------------------------------------
 # Historial de Movimientos
 # ---------------------------------------------------------------------------
@@ -1043,3 +1112,107 @@ def historial():
         fecha_hasta=fecha_hasta,
         tipo=tipo,
     )
+
+
+@routes_bp.route("/historial/exportar")
+@login_required
+def historial_exportar():
+    """Exportar historial de movimientos filtrado a Excel."""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        flash("openpyxl no está instalado.", "danger")
+        return redirect(url_for("routes.historial"))
+
+    producto_search = request.args.get("producto", "").strip()
+    fecha_desde = request.args.get("fecha_desde", "").strip()
+    fecha_hasta = request.args.get("fecha_hasta", "").strip()
+    tipo = request.args.get("tipo", "").strip()
+
+    # Construir datos igual que en historial() pero sin paginar
+    movimientos = []
+
+    entradas_query = Entrada.query
+    salidas_query = Salida.query
+
+    if producto_search:
+        entradas_query = entradas_query.join(Producto).filter(
+            Producto.descripcion.ilike(f"%{producto_search}%")
+            | Producto.codigo.ilike(f"%{producto_search}%")
+        )
+        salidas_query = salidas_query.join(Producto).filter(
+            Producto.descripcion.ilike(f"%{producto_search}%")
+            | Producto.codigo.ilike(f"%{producto_search}%")
+        )
+    if fecha_desde:
+        try:
+            fd = datetime.strptime(fecha_desde, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            entradas_query = entradas_query.filter(Entrada.fecha_ingreso >= fd)
+            salidas_query = salidas_query.filter(Salida.fecha_salida >= fd)
+        except ValueError:
+            pass
+    if fecha_hasta:
+        try:
+            fh = datetime.strptime(fecha_hasta, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            entradas_query = entradas_query.filter(Entrada.fecha_ingreso <= fh)
+            salidas_query = salidas_query.filter(Salida.fecha_salida <= fh)
+        except ValueError:
+            pass
+
+    if tipo != "SALIDA":
+        for e in entradas_query.order_by(Entrada.fecha_ingreso.desc()).all():
+            movimientos.append([
+                e.fecha_ingreso.strftime("%Y-%m-%d %H:%M") if e.fecha_ingreso else "",
+                "ENTRADA",
+                e.producto.codigo if e.producto else "",
+                e.producto.descripcion if e.producto else "",
+                e.cantidad, e.um or "",
+                e.oc or "", e.guia_remision or "", e.zona or "",
+                e.ubicacion or "", e.alm or "", e.familia or "",
+            ])
+    if tipo != "ENTRADA":
+        for s in salidas_query.order_by(Salida.fecha_salida.desc()).all():
+            movimientos.append([
+                s.fecha_salida.strftime("%Y-%m-%d %H:%M") if s.fecha_salida else "",
+                "SALIDA",
+                s.producto.codigo if s.producto else "",
+                s.producto.descripcion if s.producto else "",
+                s.cantidad, s.um or "",
+                s.nro_vale or "", s.oi or "", s.c_costo or "",
+                s.maquina or "", s.categoria or "", "",
+            ])
+
+    movimientos.sort(key=lambda r: r[0], reverse=True)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "MOVIMIENTOS"
+
+    headers = ["FECHA", "TIPO", "CÓDIGO", "PRODUCTO", "CANTIDAD", "U.M",
+               "OC/VALE", "GUÍA/OI", "ZONA/C.COSTO", "UBIC/MÁQ", "ALM/CAT", "FAMILIA"]
+    hf = Font(bold=True, color="FFFFFF", size=11)
+    hfill = PatternFill(start_color="0D6EFD", end_color="0D6EFD", fill_type="solid")
+    tb = Border(left=Side(style="thin"), right=Side(style="thin"),
+                top=Side(style="thin"), bottom=Side(style="thin"))
+
+    for ci, h in enumerate(headers, 1):
+        c = ws.cell(row=1, column=ci, value=h)
+        c.font = hf; c.fill = hfill; c.border = tb
+
+    for ri, row in enumerate(movimientos, 2):
+        for ci, v in enumerate(row, 1):
+            c = ws.cell(row=ri, column=ci, value=v)
+            c.border = tb
+
+    widths = [18, 10, 12, 50, 10, 8, 14, 14, 14, 14, 14, 18]
+    for i, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+
+    output = io.BytesIO()
+    wb.save(output); output.seek(0)
+    from datetime import date
+    return send_file(output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True, download_name=f"historial_{date.today().strftime('%Y%m%d')}.xlsx")

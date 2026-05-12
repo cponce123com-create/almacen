@@ -1,4 +1,6 @@
 import os
+import logging
+from logging.handlers import RotatingFileHandler
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
@@ -12,6 +14,24 @@ migrate = Migrate()
 
 def create_app():
     app = Flask(__name__)
+
+    # ------------------------------------------------------------------
+    # Logging (archivo rotativo útil para debug en Render)
+    # ------------------------------------------------------------------
+    if not app.debug:
+        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, "almacen.log")
+        handler = RotatingFileHandler(log_file, maxBytes=5 * 1024 * 1024, backupCount=3)
+        handler.setLevel(logging.INFO)
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)s [%(module)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        handler.setFormatter(formatter)
+        app.logger.addHandler(handler)
+        app.logger.setLevel(logging.INFO)
+        app.logger.info("=== Almacén iniciado ===")
 
     # ------------------------------------------------------------------
     # Configuración de base de datos

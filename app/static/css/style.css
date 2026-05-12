@@ -132,3 +132,40 @@
         display: none !important;
     }
 }
+
+/* Drag & Drop zone */
+.drop-zone {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background-color: #f8f9fa;
+}
+
+.drop-zone:hover,
+.drop-zone.border-primary {
+    background-color: #e8f0fe !important;
+}
+
+.drop-zone.drag-over {
+    background-color: #e8f0fe !important;
+    border-color: #0d6efd !important;
+}
+
+.drop-zone.border-success {
+    background-color: #eafaf1 !important;
+}
+
+/* Animación suave en tablas */
+.table-hover tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+/* Badge más grande para stock bajo */
+.badge.bg-danger.fs-6 {
+    font-size: 0.95rem !important;
+}
+
+/* Alerts con iconos */
+.alert-success::before {
+    content: "\\2713 ";
+    font-weight: bold;
+}

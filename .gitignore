@@ -27,3 +27,10 @@ Thumbs.db
 *.egg-info/
 dist/
 build/
+
+# Logs
+logs/
+*.log
+
+# Temp import files
+/tmp/almacen_import_*

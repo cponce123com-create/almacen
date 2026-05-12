@@ -60,6 +60,29 @@
     </div>
 </div>
 
+<!-- Acciones rápidas -->
+<div class="row g-2 mb-4">
+    <div class="col-md-12">
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('routes.producto_nuevo') }}" class="btn btn-outline-primary">
+                <i class="bi bi-plus-circle"></i> Nuevo Producto
+            </a>
+            <a href="{{ url_for('routes.producto_importar') }}" class="btn btn-outline-success">
+                <i class="bi bi-upload"></i> Importar desde Excel
+            </a>
+            <a href="{{ url_for('routes.entradas') }}" class="btn btn-outline-info">
+                <i class="bi bi-arrow-down-circle"></i> Registrar Entrada
+            </a>
+            <a href="{{ url_for('routes.salidas') }}" class="btn btn-outline-warning">
+                <i class="bi bi-arrow-up-circle"></i> Registrar Salida
+            </a>
+            <a href="{{ url_for('routes.existencias') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-list-check"></i> Ver Existencias
+            </a>
+        </div>
+    </div>
+</div>
+
 <div class="row g-3">
     <!-- Alertas de stock bajo -->
     <div class="col-lg-5">
