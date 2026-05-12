@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Importar Productos - Almacén{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{{ url_for('routes.productos') }}" class="btn btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h4 class="mb-0"><i class="bi bi-upload me-2"></i>Importar Productos desde Excel</h4>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body p-4">
+                <h5 class="card-title mb-3">Instrucciones</h5>
+                <ol class="mb-3">
+                    <li>Descarga la <strong>plantilla Excel</strong> usando el botón de abajo.</li>
+                    <li>Llena los datos del catálogo (código, catálogo, descripción, unidad, familia).</li>
+                    <li>Selecciona el archivo y haz clic en <strong>Importar</strong>.</li>
+                </ol>
+                <p class="text-muted small mb-0">
+                    <i class="bi bi-info-circle"></i>
+                    Los productos existentes con el mismo código se <strong>actualizarán</strong>.
+                    Los nuevos se <strong>crearán</strong> automáticamente.
+                </p>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="mb-0">Seleccionar archivo</h5>
+                    <a href="{{ url_for('routes.producto_plantilla') }}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-download me-1"></i>Descargar plantilla
+                    </a>
+                </div>
+
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="archivo" class="form-label">Archivo Excel (.xlsx)</label>
+                        <input type="file" class="form-control" id="archivo" name="archivo"
+                               accept=".xlsx,.xls" required>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('routes.productos') }}" class="btn btn-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload me-1"></i>Importar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Vista previa del formato esperado -->
+        <div class="card shadow-sm border-0 mt-4">
+            <div class="card-body">
+                <h6 class="card-title mb-3">Formato esperado (hoja: MAESTRA)</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-primary">
+                            <tr>
+                                <th>CODIGO</th>
+                                <th>COD. CATALOGO</th>
+                                <th>DESCRIPCION DEL PRODUCTO</th>
+                                <th>U.M</th>
+                                <th>FAMILIA</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="text-muted">P001</span></td>
+                                <td><span class="text-muted">CAT-001</span></td>
+                                <td><span class="text-muted">Tornillo M8x30</span></td>
+                                <td><span class="text-muted">UND</span></td>
+                                <td><span class="text-muted">FERRETERIA</span></td>
+                            </tr>
+                            <tr>
+                                <td><span class="text-muted">P002</span></td>
+                                <td><span class="text-muted">CAT-001</span></td>
+                                <td><span class="text-muted">Tuerca M8</span></td>
+                                <td><span class="text-muted">UND</span></td>
+                                <td><span class="text-muted">FERRETERIA</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-muted small mb-0">
+                    <i class="bi bi-check-circle"></i>
+                    También reconoce columnas: DESCRIPCIÓN, PRODUCTO, UM, CATALOGO.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

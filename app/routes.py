@@ -1,5 +1,7 @@
+import io
+import re
 from datetime import datetime, timezone
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db
 from app.models import User, Producto, Entrada, Salida
@@ -153,6 +155,256 @@ def producto_eliminar(producto_id):
     db.session.commit()
     flash("Producto eliminado correctamente.", "success")
     return redirect(url_for("routes.productos"))
+
+
+# ---------------------------------------------------------------------------
+# Importar / Exportar productos en Excel
+# ---------------------------------------------------------------------------
+
+HEADERS_MAESTRA = [
+    "CODIGO", "COD. CATALOGO", "DESCRIPCION DEL PRODUCTO", "U.M", "FAMILIA"
+]
+
+COL_MAP = {
+    "CODIGO": "codigo",
+    "COD. CATALOGO": "cod_catalogo",
+    "CATALOGO": "cod_catalogo",
+    "DESCRIPCION DEL PRODUCTO": "descripcion",
+    "DESCRIPCION": "descripcion",
+    "DESCRIPCIÓN": "descripcion",
+    "PRODUCTO": "descripcion",
+    "U.M": "um",
+    "UM": "um",
+    "U.M.": "um",
+    "FAMILIA": "familia",
+}
+
+
+@routes_bp.route("/productos/plantilla")
+@login_required
+def producto_plantilla():
+    """Descargar plantilla Excel vacía con estructura MAESTRA."""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment
+    except ImportError:
+        flash("openpyxl no está instalado.", "danger")
+        return redirect(url_for("routes.productos"))
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "MAESTRA"
+
+    # Encabezados con estilo
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="0D6EFD", end_color="0D6EFD", fill_type="solid")
+    header_align = Alignment(horizontal="center", vertical="center")
+
+    for col_idx, header in enumerate(HEADERS_MAESTRA, 1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+
+    # Ajustar ancho de columnas
+    widths = [12, 14, 50, 10, 20]
+    for i, w in enumerate(widths, 1):
+        ws.column_dimensions[chr(64 + i)].width = w
+
+    # Fila de ejemplo (comentada como referencia)
+    ws.cell(row=2, column=1, value="(Ej: P001)")
+    ws.cell(row=2, column=2, value="(Ej: CAT-001)")
+    ws.cell(row=2, column=3, value="(Ej: Tornillo M8x30)")
+    ws.cell(row=2, column=4, value="(Ej: UND)")
+    ws.cell(row=2, column=5, value="(Ej: FERRETERIA)")
+    for col in range(1, 6):
+        ws.cell(row=2, column=col).font = Font(italic=True, color="888888")
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name="plantilla_maestra.xlsx",
+    )
+
+
+@routes_bp.route("/productos/importar", methods=["GET", "POST"])
+@login_required
+def producto_importar():
+    """Importar productos desde un archivo Excel con estructura MAESTRA."""
+    if request.method == "POST":
+        if "archivo" not in request.files:
+            flash("No se seleccionó ningún archivo.", "danger")
+            return redirect(url_for("routes.producto_importar"))
+
+        file = request.files["archivo"]
+        if file.filename == "":
+            flash("No se seleccionó ningún archivo.", "danger")
+            return redirect(url_for("routes.producto_importar"))
+
+        if not file.filename.lower().endswith((".xlsx", ".xls")):
+            flash("El archivo debe ser .xlsx o .xls.", "danger")
+            return redirect(url_for("routes.producto_importar"))
+
+        try:
+            import openpyxl
+        except ImportError:
+            flash("openpyxl no está instalado.", "danger")
+            return redirect(url_for("routes.productos"))
+
+        try:
+            wb = openpyxl.load_workbook(file, data_only=True)
+            ws = wb.active
+
+            # Leer encabezados del Excel
+            headers_raw = [str(cell.value or "").strip().upper() for cell in ws[1]]
+
+            # Mapear columnas encontradas
+            col_indices = {}
+            for i, h in enumerate(headers_raw):
+                for key, val in COL_MAP.items():
+                    if key.upper() == h:
+                        col_indices[val] = i
+                        break
+
+            if "codigo" not in col_indices:
+                flash("El Excel no tiene una columna 'CODIGO' reconocible.", "danger")
+                return redirect(url_for("routes.producto_importar"))
+
+            creados = 0
+            actualizados = 0
+            errores = 0
+
+            for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), 2):
+                if not any(cell is not None for cell in row):
+                    continue  # saltar filas vacías
+
+                def val(col_name):
+                    idx = col_indices.get(col_name)
+                    if idx is None or idx >= len(row):
+                        return ""
+                    v = row[idx]
+                    return str(v).strip() if v is not None else ""
+
+                codigo = val("codigo").upper()
+                if not codigo:
+                    continue
+
+                descripcion = val("descripcion")
+                if not descripcion:
+                    errores += 1
+                    continue
+
+                cod_catalogo = val("cod_catalogo")
+                um = val("um").upper() or "UND"
+                familia = val("familia")
+
+                producto = Producto.query.filter_by(codigo=codigo).first()
+                if producto:
+                    producto.cod_catalogo = cod_catalogo
+                    producto.descripcion = descripcion
+                    producto.um = um
+                    producto.familia = familia
+                    actualizados += 1
+                else:
+                    producto = Producto(
+                        codigo=codigo,
+                        cod_catalogo=cod_catalogo,
+                        descripcion=descripcion,
+                        um=um,
+                        familia=familia,
+                    )
+                    db.session.add(producto)
+                    creados += 1
+
+            db.session.commit()
+            flash(
+                f"Importación completada: {creados} creados, {actualizados} actualizados, {errores} errores.",
+                "success" if errores == 0 else "warning",
+            )
+            return redirect(url_for("routes.productos"))
+
+        except Exception as e:
+            flash(f"Error al leer el archivo: {str(e)}", "danger")
+            return redirect(url_for("routes.producto_importar"))
+
+    return render_template("producto_importar.html")
+
+
+@routes_bp.route("/productos/exportar")
+@login_required
+def producto_exportar():
+    """Exportar todos los productos a un archivo Excel."""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    except ImportError:
+        flash("openpyxl no está instalado.", "danger")
+        return redirect(url_for("routes.productos"))
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "MAESTRA"
+
+    # Encabezados
+    headers = ["CODIGO", "COD. CATALOGO", "DESCRIPCION DEL PRODUCTO",
+               "U.M", "FAMILIA", "STOCK ACTUAL", "STOCK MINIMO"]
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill(start_color="0D6EFD", end_color="0D6EFD", fill_type="solid")
+    header_align = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin"),
+        right=Side(style="thin"),
+        top=Side(style="thin"),
+        bottom=Side(style="thin"),
+    )
+
+    for col_idx, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+
+    # Datos
+    productos = Producto.query.order_by(Producto.codigo.asc()).all()
+    for row_idx, p in enumerate(productos, 2):
+        values = [
+            p.codigo,
+            p.cod_catalogo,
+            p.descripcion,
+            p.um,
+            p.familia,
+            p.stock_actual,
+            p.stock_minimo,
+        ]
+        for col_idx, val in enumerate(values, 1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.border = thin_border
+
+    # Anchos
+    widths = [12, 14, 55, 10, 22, 14, 14]
+    for i, w in enumerate(widths, 1):
+        col_letter = ws.cell(row=1, column=i).column_letter
+        ws.column_dimensions[col_letter].width = w
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    from datetime import date
+    today = date.today().strftime("%Y%m%d")
+
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=f"productos_{today}.xlsx",
+    )
 
 
 def _producto_form(producto=None):
