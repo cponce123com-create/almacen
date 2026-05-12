@@ -400,6 +400,8 @@ def _parse_excel(file):
     # Leer filas
     filas = []
     codigos_vistos = set()
+    # Obtener todos los códigos existentes de una sola vez (rendimiento)
+    codigos_existentes = {r[0] for r in db.session.query(Producto.codigo).all()}
 
     for excel_row in ws.iter_rows(min_row=2, values_only=True):
         if not any(cell is not None for cell in excel_row):
@@ -429,9 +431,6 @@ def _parse_excel(file):
             except (ValueError, AttributeError):
                 stock_minimo = 0.0
 
-        # Verificar si el producto ya existe en BD
-        existente = Producto.query.filter_by(codigo=codigo).first()
-
         filas.append({
             "codigo": codigo,
             "cod_catalogo": cod_catalogo,
@@ -439,7 +438,7 @@ def _parse_excel(file):
             "um": um,
             "familia": familia,
             "stock_minimo": stock_minimo,
-            "accion": "ACTUALIZAR" if existente else "CREAR",
+            "accion": "ACTUALIZAR" if codigo in codigos_existentes else "CREAR",
         })
 
     return headers_raw, col_indices, filas, errores_prev
@@ -570,6 +569,13 @@ def producto_importar_confirmar():
     errores_db = []
 
     try:
+        # Cargar productos existentes de una sola vez
+        codigos_a_importar = [f["codigo"] for f in filas]
+        existentes_map = {
+            p.codigo: p
+            for p in Producto.query.filter(Producto.codigo.in_(codigos_a_importar)).all()
+        }
+
         for f in filas:
             codigo = _sanitize_field(f["codigo"], "codigo")
             descripcion = _sanitize_field(f["descripcion"], "descripcion")
@@ -577,21 +583,18 @@ def producto_importar_confirmar():
             um = _sanitize_field(f["um"], "um") or "UND"
             familia = _sanitize_field(f["familia"], "familia")
 
-            if not descripcion:
-                pass  # se permite importar sin descripción, se editará después
-
-            producto = Producto.query.filter_by(codigo=codigo).first()
+            producto = existentes_map.get(codigo)
             if producto:
                 producto.cod_catalogo = cod_catalogo or producto.cod_catalogo
-                producto.descripcion = descripcion
-                producto.um = um
+                producto.descripcion = descripcion or producto.descripcion
+                producto.um = um or producto.um
                 producto.familia = familia or producto.familia
                 producto.stock_minimo = f["stock_minimo"]
                 actualizados.append(codigo)
             else:
                 producto = Producto(
                     codigo=codigo, cod_catalogo=cod_catalogo,
-                    descripcion=descripcion, um=um, familia=familia,
+                    descripcion=descripcion or "", um=um, familia=familia,
                     stock_minimo=f["stock_minimo"],
                 )
                 db.session.add(producto)
