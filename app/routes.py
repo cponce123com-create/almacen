@@ -15,10 +15,11 @@ routes_bp = Blueprint("routes", __name__)
 # ---------------------------------------------------------------------------
 
 def _init_admin_user():
-    """Crea el usuario admin por defecto si no existe."""
-    if not User.query.filter_by(username="admin").first():
-        admin = User(username="admin")
-        admin.set_password("admin")
+    """Crea el usuario administrador por defecto si no existe."""
+    admin_username = User.ADMIN_USERNAME  # "cponce123.com@gmail.com"
+    if not User.query.filter_by(username=admin_username).first():
+        admin = User(username=admin_username)
+        admin.set_password("Hadrones456%")
         db.session.add(admin)
         db.session.commit()
 
@@ -1871,13 +1872,26 @@ def historial_exportar():
 
 
 # ===========================================================================
-# Administración de Usuarios
+# Administración de Usuarios (solo administrador)
 # ===========================================================================
+
+def _admin_required(redirect_to="routes.dashboard"):
+    """Decorador que verifica que el usuario actual sea el administrador."""
+    if not current_user.is_authenticated:
+        return redirect(url_for("routes.login"))
+    if not current_user.is_admin:
+        flash("Acceso denegado. Solo el administrador puede gestionar usuarios.", "danger")
+        return redirect(url_for(redirect_to))
+    return None
+
 
 @routes_bp.route("/admin/usuarios")
 @login_required
 def admin_usuarios():
     """Lista de usuarios del sistema."""
+    check = _admin_required()
+    if check:
+        return check
     usuarios = User.query.order_by(User.username.asc()).all()
     return render_template("admin_usuarios.html", usuarios=usuarios)
 
@@ -1886,6 +1900,9 @@ def admin_usuarios():
 @login_required
 def admin_usuario_nuevo():
     """Crear nuevo usuario."""
+    check = _admin_required()
+    if check:
+        return check
     if request.method == "POST":
         username = request.form.get("username", "").strip().lower()
         password = request.form.get("password", "")
@@ -1920,6 +1937,9 @@ def admin_usuario_nuevo():
 @login_required
 def admin_usuario_editar(user_id):
     """Editar usuario existente."""
+    check = _admin_required()
+    if check:
+        return check
     user = db.session.get(User, user_id)
     if not user:
         flash("Usuario no encontrado.", "danger")
@@ -1957,12 +1977,15 @@ def admin_usuario_editar(user_id):
 @login_required
 def admin_usuario_eliminar(user_id):
     """Eliminar usuario."""
+    check = _admin_required()
+    if check:
+        return check
     user = db.session.get(User, user_id)
     if not user:
         flash("Usuario no encontrado.", "danger")
         return redirect(url_for("routes.admin_usuarios"))
 
-    if user.username == "admin":
+    if user.username == User.ADMIN_USERNAME:
         flash("No se puede eliminar al usuario administrador principal.", "danger")
         return redirect(url_for("routes.admin_usuarios"))
 

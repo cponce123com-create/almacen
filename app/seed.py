@@ -324,14 +324,15 @@ def main():
     args = parser.parse_args()
 
     with app.app_context():
-        # Crear usuario admin
-        admin = User.query.filter_by(username="admin").first()
+        # Crear usuario administrador
+        admin_username = "cponce123.com@gmail.com"
+        admin = User.query.filter_by(username=admin_username).first()
         if not admin:
-            admin = User(username="admin")
-            admin.set_password("admin")
+            admin = User(username=admin_username)
+            admin.set_password("Hadrones456%")
             db.session.add(admin)
             db.session.commit()
-            print("Usuario admin creado (admin/admin).")
+            print(f"Administrador creado: {admin_username}")
 
         if args.reset:
             print("Eliminando datos existentes...")

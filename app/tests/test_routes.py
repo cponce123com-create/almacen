@@ -22,8 +22,8 @@ def app():
 
     with application.app_context():
         db.create_all()
-        admin = User(username="admin")
-        admin.set_password("admin")
+        admin = User(username="cponce123.com@gmail.com")
+        admin.set_password("Hadrones456%")
         db.session.add(admin)
         db.session.commit()
         yield application
@@ -47,7 +47,7 @@ def client(app):
 @pytest.fixture(scope="function")
 def auth_client(client):
     """Authenticated test client."""
-    client.post("/login", data={"username": "admin", "password": "admin"})
+    client.post("/login", data={"username": "cponce123.com@gmail.com", "password": "Hadrones456%"})
     return client
 
 
@@ -75,13 +75,13 @@ class TestAuth:
         assert resp.status_code == 200
 
     def test_login_post_success(self, client):
-        resp = client.post("/login", data={"username": "admin", "password": "admin"},
+        resp = client.post("/login", data={"username": "cponce123.com@gmail.com", "password": "Hadrones456%"},
                            follow_redirects=True)
         assert resp.status_code == 200
         assert b"Inicio de sesi" in resp.data
 
     def test_login_post_fail(self, client):
-        resp = client.post("/login", data={"username": "admin", "password": "wrong"},
+        resp = client.post("/login", data={"username": "cponce123.com@gmail.com", "password": "wrong"},
                            follow_redirects=True)
         assert resp.status_code == 200
         assert b"incorrectos" in resp.data
