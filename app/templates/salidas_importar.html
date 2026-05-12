@@ -117,7 +117,7 @@
                 </ol>
                 <p class="text-muted small mb-0">
                     <i class="bi bi-info-circle"></i>
-                    Máximo <strong>{{ 1000 }}</strong> filas por archivo.
+                    Máximo <strong>{{ 5000 }}</strong> filas por archivo.
                     Solo formato <strong>.xlsx</strong> (Office 2007+).
                 </p>
             </div>
@@ -125,7 +125,12 @@
 
         <div class="card shadow-sm border-0">
             <div class="card-body p-4">
-                <h5 class="mb-4">Seleccionar archivo</h5>
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="mb-0">Seleccionar archivo</h5>
+                    <a href="{{ url_for('routes.salidas_plantilla') }}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-download me-1"></i>Descargar plantilla
+                    </a>
+                </div>
 
                 <form method="POST" enctype="multipart/form-data" id="uploadForm">
                     <div class="mb-3">

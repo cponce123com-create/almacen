@@ -333,6 +333,89 @@ def producto_plantilla():
     )
 
 
+HEADERS_PLANTILLA_ENTRADA = [
+    "CODIGO", "CANTIDAD", "U.M2", "ZONA", "UBICACIÓN", "ALM",
+    "F.INGRESO", "OC", "G.REMISION",
+]
+
+HEADERS_PLANTILLA_SALIDA = [
+    "CODIGO", "CANTIDAD", "U.M2", "F. SALIDA", "N° VALE", "OI",
+    "C.COSTO", "MAQUINA", "CATEGORIA",
+]
+
+
+def _generar_plantilla(headers, titulo, nombre_archivo, ejemplos):
+    """Helper para generar una plantilla Excel descargable."""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        return None, "openpyxl no está instalado."
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = titulo
+
+    hf = Font(bold=True, color="FFFFFF", size=11)
+    hfill = PatternFill(start_color="0D6EFD", end_color="0D6EFD", fill_type="solid")
+    ha = Alignment(horizontal="center", vertical="center")
+
+    for ci, h in enumerate(headers, 1):
+        c = ws.cell(row=1, column=ci, value=h)
+        c.font = hf; c.fill = hfill; c.alignment = ha
+
+    widths = [max(12, len(h) + 2) for h in headers]
+    for i, w in enumerate(widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = min(w, 40)
+
+    if ejemplos:
+        for ci, val in enumerate(ejemplos, 1):
+            c = ws.cell(row=2, column=ci, value=val)
+            c.font = Font(italic=True, color="888888")
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output, None
+
+
+@routes_bp.route("/entradas/plantilla")
+@login_required
+def entradas_plantilla():
+    """Descargar plantilla Excel para importar entradas."""
+    ejemplos = ["(Ej: P001)", "(Ej: 10)", "(Ej: UND)", "(Ej: ZONA-A)",
+                "(Ej: EST-01)", "(Ej: ALM-01)", "(Ej: 01/01/2025)",
+                "(Ej: OC-001)", "(Ej: GR-001)"]
+    output, error = _generar_plantilla(
+        HEADERS_PLANTILLA_ENTRADA, "ENTRADA", "plantilla_entrada.xlsx", ejemplos
+    )
+    if error:
+        flash(error, "danger")
+        return redirect(url_for("routes.entradas_importar"))
+    return send_file(output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True, download_name="plantilla_entrada.xlsx")
+
+
+@routes_bp.route("/salidas/plantilla")
+@login_required
+def salidas_plantilla():
+    """Descargar plantilla Excel para importar salidas."""
+    ejemplos = ["(Ej: P001)", "(Ej: 5)", "(Ej: UND)", "(Ej: 15/01/2025)",
+                "(Ej: V-001)", "(Ej: OI-001)", "(Ej: CC-100)",
+                "(Ej: MAQ-01)", "(Ej: GENERAL)"]
+    output, error = _generar_plantilla(
+        HEADERS_PLANTILLA_SALIDA, "SALIDA", "plantilla_salida.xlsx", ejemplos
+    )
+    if error:
+        flash(error, "danger")
+        return redirect(url_for("routes.salidas_importar"))
+    return send_file(output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True, download_name="plantilla_salida.xlsx")
+
+
 # ---------------------------------------------------------------------------
 # Ruta: Importar productos desde Excel (con previsualización)
 # ---------------------------------------------------------------------------
