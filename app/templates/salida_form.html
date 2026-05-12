@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Registrar Salida - Almacén{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-arrow-up-circle me-2"></i>Registrar Salida (Consumo / Despacho)</h4>
+
+{% set valores = valores if valores else {} %}
+
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <form method="POST">
+                    <div class="row g-3">
+                        <!-- Producto -->
+                        <div class="col-12">
+                            <label for="producto_id" class="form-label">PRODUCTO <span class="text-danger">*</span></label>
+                            <select class="form-select" id="producto_id" name="producto_id" required>
+                                <option value="">— Seleccionar producto —</option>
+                                {% for prod in productos %}
+                                <option value="{{ prod.id }}"
+                                    {{ 'selected' if valores.get('producto_id')|string == prod.id|string }}>
+                                    [{{ prod.codigo }}] {{ prod.descripcion }} — Stock: {{ "%.2f"|format(prod.stock_actual) }} {{ prod.um }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Cantidad y Fecha -->
+                        <div class="col-md-4">
+                            <label for="cantidad" class="form-label">CANTIDAD <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="cantidad" name="cantidad"
+                                   value="{{ valores.get('cantidad', '') }}"
+                                   step="0.01" min="0.01" required placeholder="0.00">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="fecha_salida" class="form-label">FECHA DE SALIDA</label>
+                            <input type="date" class="form-control" id="fecha_salida" name="fecha_salida"
+                                   value="{{ valores.get('fecha_salida', '') }}">
+                            <div class="form-text">Dejar vacío para usar fecha actual.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="nro_vale" class="form-label">N° VALE</label>
+                            <input type="text" class="form-control" id="nro_vale" name="nro_vale"
+                                   value="{{ valores.get('nro_vale', '') }}" maxlength="50">
+                        </div>
+
+                        <!-- OI y C. Costo -->
+                        <div class="col-md-6">
+                            <label for="oi" class="form-label">ORDEN INTERNA (OI)</label>
+                            <input type="text" class="form-control" id="oi" name="oi"
+                                   value="{{ valores.get('oi', '') }}" maxlength="50">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="c_costo" class="form-label">CENTRO DE COSTO</label>
+                            <input type="text" class="form-control" id="c_costo" name="c_costo"
+                                   value="{{ valores.get('c_costo', '') }}" maxlength="100">
+                        </div>
+
+                        <!-- Máquina y Categoría -->
+                        <div class="col-md-6">
+                            <label for="maquina" class="form-label">MÁQUINA</label>
+                            <input type="text" class="form-control" id="maquina" name="maquina"
+                                   value="{{ valores.get('maquina', '') }}" maxlength="100">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="categoria" class="form-label">CATEGORÍA</label>
+                            <input type="text" class="form-control" id="categoria" name="categoria"
+                                   value="{{ valores.get('categoria', '') }}" maxlength="100">
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-end gap-2 mt-4">
+                        <button type="reset" class="btn btn-secondary">Limpiar</button>
+                        <button type="submit" class="btn btn-warning">
+                            <i class="bi bi-check-lg me-1"></i>Registrar Salida
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

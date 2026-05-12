@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block title %}Historial de Movimientos - Almacén{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-clock-history me-2"></i>Historial de Movimientos</h4>
+
+<!-- Filtros -->
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label for="producto" class="form-label small">Producto</label>
+                <input type="text" class="form-control form-control-sm" id="producto" name="producto"
+                       value="{{ producto }}" placeholder="Código o descripción...">
+            </div>
+            <div class="col-md-2">
+                <label for="fecha_desde" class="form-label small">Fecha desde</label>
+                <input type="date" class="form-control form-control-sm" id="fecha_desde" name="fecha_desde"
+                       value="{{ fecha_desde }}">
+            </div>
+            <div class="col-md-2">
+                <label for="fecha_hasta" class="form-label small">Fecha hasta</label>
+                <input type="date" class="form-control form-control-sm" id="fecha_hasta" name="fecha_hasta"
+                       value="{{ fecha_hasta }}">
+            </div>
+            <div class="col-md-2">
+                <label for="tipo" class="form-label small">Tipo</label>
+                <select class="form-select form-select-sm" id="tipo" name="tipo">
+                    <option value="">Todos</option>
+                    <option value="ENTRADA" {{ 'selected' if tipo == 'ENTRADA' }}>Entradas</option>
+                    <option value="SALIDA" {{ 'selected' if tipo == 'SALIDA' }}>Salidas</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <div class="d-flex gap-1">
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        <i class="bi bi-search"></i> Filtrar
+                    </button>
+                    <a href="{{ url_for('routes.historial') }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-x-lg"></i> Limpiar
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if pagination.items %}
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Código</th>
+                <th>Producto</th>
+                <th class="text-center">Cantidad</th>
+                <th>U.M.</th>
+                <th>Referencia</th>
+                <th>Detalle</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in pagination.items %}
+            <tr>
+                <td class="small text-nowrap">
+                    {{ m.fecha.strftime('%d/%m/%Y %H:%M') if m.fecha else '—' }}
+                </td>
+                <td>
+                    {% if m.tipo == 'ENTRADA' %}
+                    <span class="badge bg-success">ENTRADA</span>
+                    {% else %}
+                    <span class="badge bg-warning text-dark">SALIDA</span>
+                    {% endif %}
+                </td>
+                <td><span class="badge bg-secondary">{{ m.codigo }}</span></td>
+                <td>{{ m.producto|truncate(40) }}</td>
+                <td class="text-center fw-semibold">{{ "%.2f"|format(m.cantidad) }}</td>
+                <td>{{ m.um }}</td>
+                <td class="small">{{ m.referencia }}</td>
+                <td class="small text-muted">{{ m.detalle }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Paginación -->
+<nav aria-label="Paginación">
+    <ul class="pagination justify-content-center">
+        <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+            <a class="page-link" href="{{ url_for('routes.historial', page=pagination.prev_num, producto=producto, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, tipo=tipo) if pagination.has_prev else '#' }}">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
+        {% for num in pagination.iter_pages() %}
+        {% if num %}
+        <li class="page-item {{ 'active' if num == pagination.page }}">
+            <a class="page-link" href="{{ url_for('routes.historial', page=num, producto=producto, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, tipo=tipo) }}">{{ num }}</a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+        {% endfor %}
+        <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+            <a class="page-link" href="{{ url_for('routes.historial', page=pagination.next_num, producto=producto, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, tipo=tipo) if pagination.has_next else '#' }}">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+    </ul>
+</nav>
+
+{% else %}
+<div class="text-center py-5 text-muted">
+    <i class="bi bi-inbox display-1"></i>
+    <h5 class="mt-3">No se encontraron movimientos</h5>
+    <p>
+        {% if producto or fecha_desde or fecha_hasta or tipo %}
+        No hay resultados con los filtros aplicados.
+        <a href="{{ url_for('routes.historial') }}">Mostrar todos</a>
+        {% else %}
+        No hay movimientos registrados. Registra entradas o salidas para ver el historial.
+        {% endif %}
+    </p>
+</div>
+{% endif %}
+{% endblock %}

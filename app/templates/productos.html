@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Productos - Almacén{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h4 class="mb-0"><i class="bi bi-box me-2"></i>Catálogo de Productos</h4>
+    <a href="{{ url_for('routes.producto_nuevo') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Nuevo Producto
+    </a>
+</div>
+
+<!-- Búsqueda -->
+<form method="GET" class="mb-3">
+    <div class="input-group">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="text" name="search" class="form-control" placeholder="Buscar por código, descripción o familia..."
+               value="{{ search }}">
+        <button type="submit" class="btn btn-outline-secondary">Buscar</button>
+        {% if search %}
+        <a href="{{ url_for('routes.productos') }}" class="btn btn-outline-danger">
+            <i class="bi bi-x-lg"></i>
+        </a>
+        {% endif %}
+    </div>
+</form>
+
+{% if pagination.items %}
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>Código</th>
+                <th>Cod. Catálogo</th>
+                <th>Descripción</th>
+                <th>U.M.</th>
+                <th>Familia</th>
+                <th class="text-center">Stock</th>
+                <th class="text-center">Mínimo</th>
+                <th class="text-end">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in pagination.items %}
+            <tr>
+                <td><span class="badge bg-secondary">{{ p.codigo }}</span></td>
+                <td class="small">{{ p.cod_catalogo or '—' }}</td>
+                <td>{{ p.descripcion }}</td>
+                <td>{{ p.um }}</td>
+                <td>{{ p.familia or '—' }}</td>
+                <td class="text-center">
+                    {% if p.stock_actual <= p.stock_minimo and p.stock_minimo > 0 %}
+                    <span class="badge bg-danger">{{ "%.2f"|format(p.stock_actual) }}</span>
+                    {% else %}
+                    {{ "%.2f"|format(p.stock_actual) }}
+                    {% endif %}
+                </td>
+                <td class="text-center">{{ "%.0f"|format(p.stock_minimo) if p.stock_minimo > 0 else '—' }}</td>
+                <td class="text-end">
+                    <a href="{{ url_for('routes.producto_editar', producto_id=p.id) }}" class="btn btn-sm btn-outline-primary" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                    <form method="POST" action="{{ url_for('routes.producto_eliminar', producto_id=p.id) }}"
+                          style="display:inline;"
+                          onsubmit="return confirm('¿Eliminar el producto {{ p.codigo }} - {{ p.descripcion|truncate(30) }}?');">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Paginación -->
+<nav aria-label="Paginación de productos">
+    <ul class="pagination justify-content-center">
+        <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+            <a class="page-link" href="{{ url_for('routes.productos', page=pagination.prev_num, search=search) if pagination.has_prev else '#' }}">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
+        {% for num in pagination.iter_pages() %}
+        {% if num %}
+        <li class="page-item {{ 'active' if num == pagination.page }}">
+            <a class="page-link" href="{{ url_for('routes.productos', page=num, search=search) }}">{{ num }}</a>
+        </li>
+        {% else %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+        {% endfor %}
+        <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+            <a class="page-link" href="{{ url_for('routes.productos', page=pagination.next_num, search=search) if pagination.has_next else '#' }}">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+    </ul>
+</nav>
+
+{% else %}
+<div class="text-center py-5 text-muted">
+    <i class="bi bi-inbox display-1"></i>
+    <h5 class="mt-3">No se encontraron productos</h5>
+    <p>
+        {% if search %}
+        No hay resultados para "<strong>{{ search }}</strong>".
+        <a href="{{ url_for('routes.productos') }}">Mostrar todos</a>
+        {% else %}
+        Aún no hay productos registrados. ¡Crea el primero!
+        {% endif %}
+    </p>
+    <a href="{{ url_for('routes.producto_nuevo') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Nuevo Producto
+    </a>
+</div>
+{% endif %}
+{% endblock %}

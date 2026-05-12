@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Almacén{% endblock %}
+
+{% block content %}
+<h3 class="mb-4"><i class="bi bi-speedometer2 me-2"></i>Dashboard</h3>
+
+<!-- Tarjetas de resumen -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3 col-sm-6">
+        <div class="card border-0 shadow-sm text-bg-primary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-0 opacity-75">Productos</h6>
+                        <h2 class="mb-0">{{ total_productos }}</h2>
+                    </div>
+                    <i class="bi bi-box display-6 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="card border-0 shadow-sm text-bg-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-0 opacity-75">Entradas</h6>
+                        <h2 class="mb-0">{{ total_entradas }}</h2>
+                    </div>
+                    <i class="bi bi-arrow-down-circle display-6 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="card border-0 shadow-sm text-bg-warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-0 opacity-75">Salidas</h6>
+                        <h2 class="mb-0">{{ total_salidas }}</h2>
+                    </div>
+                    <i class="bi bi-arrow-up-circle display-6 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="card border-0 shadow-sm text-bg-danger">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-0 opacity-75">Stock Bajo</h6>
+                        <h2 class="mb-0">{{ stock_bajo|length }}</h2>
+                    </div>
+                    <i class="bi bi-exclamation-triangle display-6 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- Alertas de stock bajo -->
+    <div class="col-lg-5">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white fw-semibold">
+                <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>Alertas de Stock Bajo
+            </div>
+            <div class="card-body p-0">
+                {% if stock_bajo %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Código</th>
+                                <th>Producto</th>
+                                <th class="text-center">Stock</th>
+                                <th class="text-center">Mínimo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in stock_bajo %}
+                            <tr>
+                                <td><span class="badge bg-secondary">{{ p.codigo }}</span></td>
+                                <td>{{ p.descripcion|truncate(30) }}</td>
+                                <td class="text-center text-danger fw-bold">{{ "%.2f"|format(p.stock_actual) }}</td>
+                                <td class="text-center">{{ "%.0f"|format(p.stock_minimo) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-check-circle display-6"></i>
+                    <p class="mt-2 mb-0">No hay productos con stock bajo. ¡Todo en orden!</p>
+                </div>
+                {% endif %}
+            </div>
+            {% if stock_bajo %}
+            <div class="card-footer bg-white text-end">
+                <a href="{{ url_for('routes.existencias', solo_bajo=1) }}" class="btn btn-sm btn-outline-danger">
+                    Ver todos <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Movimientos recientes -->
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white fw-semibold">
+                <i class="bi bi-clock-history me-2"></i>Movimientos Recientes
+            </div>
+            <div class="card-body p-0">
+                {% if movimientos %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Tipo</th>
+                                <th>Producto</th>
+                                <th class="text-center">Cant.</th>
+                                <th>Ref.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m in movimientos %}
+                            <tr>
+                                <td class="small">{{ m.fecha.strftime('%d/%m/%Y %H:%M') if m.fecha else '—' }}</td>
+                                <td>
+                                    {% if m.tipo == 'ENTRADA' %}
+                                    <span class="badge bg-success">ENTRADA</span>
+                                    {% else %}
+                                    <span class="badge bg-warning text-dark">SALIDA</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ m.producto|truncate(35) }}</td>
+                                <td class="text-center">{{ "%.2f"|format(m.cantidad) }}</td>
+                                <td class="small">{{ m.referencia }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-inbox display-6"></i>
+                    <p class="mt-2 mb-0">No hay movimientos registrados aún.</p>
+                </div>
+                {% endif %}
+            </div>
+            {% if movimientos %}
+            <div class="card-footer bg-white text-end">
+                <a href="{{ url_for('routes.historial') }}" class="btn btn-sm btn-outline-primary">
+                    Ver historial completo <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
