@@ -121,7 +121,7 @@ def productos():
             | Producto.codigo.ilike(f"%{search}%")
             | Producto.familia.ilike(f"%{search}%")
         )
-    query = query.order_by(Producto.descripcion.asc())
+    query = query.order_by(Producto.codigo.asc())
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     return render_template("productos.html", pagination=pagination, search=search)
 
@@ -1868,3 +1868,109 @@ def historial_exportar():
     return send_file(output,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True, download_name=f"historial_{date.today().strftime('%Y%m%d')}.xlsx")
+
+
+# ===========================================================================
+# Administración de Usuarios
+# ===========================================================================
+
+@routes_bp.route("/admin/usuarios")
+@login_required
+def admin_usuarios():
+    """Lista de usuarios del sistema."""
+    usuarios = User.query.order_by(User.username.asc()).all()
+    return render_template("admin_usuarios.html", usuarios=usuarios)
+
+
+@routes_bp.route("/admin/usuarios/nuevo", methods=["GET", "POST"])
+@login_required
+def admin_usuario_nuevo():
+    """Crear nuevo usuario."""
+    if request.method == "POST":
+        username = request.form.get("username", "").strip().lower()
+        password = request.form.get("password", "")
+        password2 = request.form.get("password2", "")
+
+        errores = []
+        if not username or len(username) < 3:
+            errores.append("El usuario debe tener al menos 3 caracteres.")
+        if User.query.filter_by(username=username).first():
+            errores.append(f"El usuario '{username}' ya existe.")
+        if len(password) < 4:
+            errores.append("La contraseña debe tener al menos 4 caracteres.")
+        if password != password2:
+            errores.append("Las contraseñas no coinciden.")
+
+        if errores:
+            for e in errores:
+                flash(e, "danger")
+            return render_template("admin_usuario_form.html", valores=request.form)
+
+        user = User(username=username)
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+        flash(f"Usuario '{username}' creado correctamente.", "success")
+        return redirect(url_for("routes.admin_usuarios"))
+
+    return render_template("admin_usuario_form.html")
+
+
+@routes_bp.route("/admin/usuarios/editar/<int:user_id>", methods=["GET", "POST"])
+@login_required
+def admin_usuario_editar(user_id):
+    """Editar usuario existente."""
+    user = db.session.get(User, user_id)
+    if not user:
+        flash("Usuario no encontrado.", "danger")
+        return redirect(url_for("routes.admin_usuarios"))
+
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        password2 = request.form.get("password2", "")
+
+        errores = []
+        if password:
+            if len(password) < 4:
+                errores.append("La contraseña debe tener al menos 4 caracteres.")
+            if password != password2:
+                errores.append("Las contraseñas no coinciden.")
+
+        if errores:
+            for e in errores:
+                flash(e, "danger")
+            return render_template("admin_usuario_form.html", usuario=user, valores=request.form)
+
+        if password:
+            user.set_password(password)
+            db.session.commit()
+            flash(f"Contraseña de '{user.username}' actualizada.", "success")
+        else:
+            flash("No se realizaron cambios (dejar contraseña en blanco).", "info")
+
+        return redirect(url_for("routes.admin_usuarios"))
+
+    return render_template("admin_usuario_form.html", usuario=user)
+
+
+@routes_bp.route("/admin/usuarios/eliminar/<int:user_id>", methods=["POST"])
+@login_required
+def admin_usuario_eliminar(user_id):
+    """Eliminar usuario."""
+    user = db.session.get(User, user_id)
+    if not user:
+        flash("Usuario no encontrado.", "danger")
+        return redirect(url_for("routes.admin_usuarios"))
+
+    if user.username == "admin":
+        flash("No se puede eliminar al usuario administrador principal.", "danger")
+        return redirect(url_for("routes.admin_usuarios"))
+
+    if user.id == current_user.id:
+        flash("No puedes eliminar tu propio usuario.", "danger")
+        return redirect(url_for("routes.admin_usuarios"))
+
+    db.session.delete(user)
+    db.session.commit()
+    flash(f"Usuario '{user.username}' eliminado.", "success")
+    return redirect(url_for("routes.admin_usuarios"))
