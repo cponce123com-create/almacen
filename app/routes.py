@@ -1,4 +1,5 @@
 import io
+import os
 import re
 from datetime import datetime, timezone
 from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file
@@ -292,17 +293,137 @@ def producto_plantilla():
 
 
 # ---------------------------------------------------------------------------
-# Ruta: Importar productos desde Excel
+# Ruta: Importar productos desde Excel (con previsualización)
 # ---------------------------------------------------------------------------
+
+MAX_IMPORT_ROWS = 1000
+"""Número máximo de filas permitidas en una importación."""
+
+
+def _parse_excel(file):
+    """Parsea un archivo Excel y devuelve (headers, col_indices, filas, errores).
+
+    ``file`` puede ser una ruta (str) o un objeto file-like.
+    """
+    errores_prev = []
+
+    try:
+        import openpyxl
+    except ImportError:
+        errores_prev.append("openpyxl no está instalado en el servidor.")
+        return None, None, None, errores_prev
+
+    try:
+        wb = openpyxl.load_workbook(file, data_only=True)
+        ws = wb.active
+    except Exception:
+        errores_prev.append("El archivo no es un Excel válido o está corrupto.")
+        return None, None, None, errores_prev
+
+    # Leer encabezados
+    first_row = list(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+    if not first_row or not any(c is not None for c in first_row[0]):
+        errores_prev.append("El archivo Excel está vacío.")
+        return None, None, None, errores_prev
+
+    headers_raw = []
+    for cell_val in first_row[0]:
+        s = str(cell_val).strip().upper() if cell_val is not None else ""
+        headers_raw.append(s)
+
+    col_indices = {}
+    for i, h in enumerate(headers_raw):
+        for key, mapped in COL_MAP.items():
+            if key.upper() == h:
+                col_indices[mapped] = i
+                break
+
+    if "codigo" not in col_indices:
+        cols = ", ".join(h for h in headers_raw if h)
+        errores_prev.append(
+            f"No se encontró columna 'CODIGO'. Columnas del archivo: {cols}" if cols
+            else "No se encontró la columna 'CODIGO'."
+        )
+        return headers_raw, None, None, errores_prev
+
+    # Contar filas totales ANTES de procesar
+    total_rows = sum(1 for _ in ws.iter_rows(min_row=2, values_only=True)
+                     if any(c is not None for c in _))
+    if total_rows > MAX_IMPORT_ROWS:
+        errores_prev.append(
+            f"El archivo tiene {total_rows} filas con datos. "
+            f"Máximo permitido: {MAX_IMPORT_ROWS}."
+        )
+        return headers_raw, col_indices, None, errores_prev
+
+    # Leer filas
+    filas = []
+    codigos_vistos = set()
+
+    for excel_row in ws.iter_rows(min_row=2, values_only=True):
+        if not any(cell is not None for cell in excel_row):
+            continue
+
+        codigo = _excel_val(excel_row, col_indices, "codigo").upper()
+        if not codigo:
+            continue
+
+        descripcion = _excel_val(excel_row, col_indices, "descripcion")
+        if not descripcion:
+            continue
+
+        # Detectar duplicados internos
+        if codigo in codigos_vistos:
+            continue
+        codigos_vistos.add(codigo)
+
+        cod_catalogo = _excel_val(excel_row, col_indices, "cod_catalogo")
+        um = _excel_val(excel_row, col_indices, "um").upper() or "UND"
+        familia = _excel_val(excel_row, col_indices, "familia")
+
+        stock_minimo = 0.0
+        if "stock_minimo" in col_indices:
+            raw = _excel_val(excel_row, col_indices, "stock_minimo")
+            try:
+                stock_minimo = max(0.0, float(raw.replace(",", ".")))
+            except (ValueError, AttributeError):
+                stock_minimo = 0.0
+
+        # Verificar si el producto ya existe en BD
+        existente = Producto.query.filter_by(codigo=codigo).first()
+
+        filas.append({
+            "codigo": codigo,
+            "cod_catalogo": cod_catalogo,
+            "descripcion": descripcion,
+            "um": um,
+            "familia": familia,
+            "stock_minimo": stock_minimo,
+            "accion": "ACTUALIZAR" if existente else "CREAR",
+        })
+
+    return headers_raw, col_indices, filas, errores_prev
+
 
 @routes_bp.route("/productos/importar", methods=["GET", "POST"])
 @login_required
 def producto_importar():
     """Importar productos desde archivo Excel.
-    
-    Crea los que no existen, actualiza los existentes.
-    Maneja duplicados internos, truncado de campos y transacción atómica.
+
+    Flujo de dos pasos:
+      1. POST sin confirmar → parsea el archivo, muestra vista previa.
+      2. POST con confirmar  → ejecuta la importación real.
     """
+    # ---------------------------------------------------------------
+        # ---------------------------------------------------------------
+    # Manejo de peticiones
+    # ---------------------------------------------------------------
+    # ---------------------------------------------------------------
+    # Manejo de peticiones
+    # ---------------------------------------------------------------
+    import uuid as _uuid
+    import tempfile as _tempfile
+
     if request.method == "POST":
         # --- Validación del archivo ---
         if "archivo" not in request.files:
@@ -314,152 +435,170 @@ def producto_importar():
             flash("No se seleccionó ningún archivo.", "danger")
             return redirect(url_for("routes.producto_importar"))
 
-        # Aceptar .xlsx y .xls (openpyxl maneja ambos)
-        if not file.filename.lower().endswith((".xlsx", ".xls")):
-            flash("El archivo debe ser .xlsx o .xls.", "danger")
+        # Solo aceptar .xlsx (openpyxl NO soporta .xls antiguo)
+        if not file.filename.lower().endswith(".xlsx"):
+            flash("Solo se aceptan archivos .xlsx (Excel moderno). "
+                  "Si tu archivo es .xls, ábrelo en Excel y guárdalo como .xlsx.", "warning")
             return redirect(url_for("routes.producto_importar"))
 
-        try:
-            import openpyxl
-        except ImportError:
-            flash("openpyxl no está instalado.", "danger")
-            return redirect(url_for("routes.productos"))
+        # Guardar el archivo en un temporal para poder releerlo en confirmación
+        tmp_suffix = _uuid.uuid4().hex[:12]
+        tmp_path = os.path.join(_tempfile.gettempdir(), f"almacen_import_{tmp_suffix}.xlsx")
+        file.save(tmp_path)
 
         try:
-            wb = openpyxl.load_workbook(file, data_only=True)
-            ws = wb.active
+            headers_raw, col_indices, filas, errores_prev = _parse_excel(tmp_path)
         except Exception:
-            flash("El archivo no es un Excel válido o está corrupto.", "danger")
+            errores_prev = ["Error inesperado al leer el archivo."]
+            headers_raw = None
+            filas = None
+
+        if errores_prev:
+            # Limpiar temp
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+            for e in errores_prev:
+                flash(e, "danger")
             return redirect(url_for("routes.producto_importar"))
-
-        # --- Leer encabezados ---
-        first_row = list(ws.iter_rows(min_row=1, max_row=1, values_only=True))
-        if not first_row or not any(c is not None for c in first_row[0]):
-            flash("El archivo Excel está vacío.", "danger")
-            return redirect(url_for("routes.producto_importar"))
-
-        headers_raw = []
-        for cell_val in first_row[0]:
-            s = str(cell_val).strip().upper() if cell_val is not None else ""
-            headers_raw.append(s)
-
-        # Mapear columnas encontradas
-        col_indices = {}
-        for i, h in enumerate(headers_raw):
-            for key, mapped in COL_MAP.items():
-                if key.upper() == h:
-                    col_indices[mapped] = i
-                    break
-
-        if "codigo" not in col_indices:
-            flash("El Excel no tiene una columna 'CODIGO' reconocible. "
-                  "Columnas encontradas: " + ", ".join(h for h in headers_raw if h), "danger")
-            return redirect(url_for("routes.producto_importar"))
-
-        # --- Leer filas y validar duplicados internos ---
-        filas = []
-        codigos_vistos = set()
-        errores_duplicados = 0
-
-        for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), 2):
-            if not any(cell is not None for cell in row):
-                continue
-
-            codigo = _excel_val(row, col_indices, "codigo").upper()
-            if not codigo:
-                continue
-
-            descripcion = _excel_val(row, col_indices, "descripcion")
-            if not descripcion:
-                errores_duplicados += 1  # se cuenta como error
-                continue
-
-            # Detectar duplicados DENTRO del mismo Excel
-            if codigo in codigos_vistos:
-                errores_duplicados += 1
-                continue
-            codigos_vistos.add(codigo)
-
-            cod_catalogo = _excel_val(row, col_indices, "cod_catalogo")
-            um = _excel_val(row, col_indices, "um").upper() or "UND"
-            familia = _excel_val(row, col_indices, "familia")
-
-            # Leer stock_minimo si existe la columna
-            stock_minimo = 0.0
-            if "stock_minimo" in col_indices:
-                raw_stock = _excel_val(row, col_indices, "stock_minimo")
-                try:
-                    stock_minimo = max(0.0, float(raw_stock.replace(",", ".")))
-                except (ValueError, AttributeError):
-                    stock_minimo = 0.0
-
-            filas.append({
-                "codigo": codigo,
-                "cod_catalogo": cod_catalogo,
-                "descripcion": descripcion,
-                "um": um,
-                "familia": familia,
-                "stock_minimo": stock_minimo,
-            })
 
         if not filas:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
             flash("No se encontraron filas válidas para importar.", "warning")
             return redirect(url_for("routes.producto_importar"))
 
-        # --- Ejecutar importación en transacción atómica ---
-        creados = 0
-        actualizados = 0
-        errores_db = 0
+        # Mostrar vista previa
+        headers_mostrar = [h for h in headers_raw if h]
+        return render_template(
+            "producto_importar.html",
+            preview=True,
+            tmp_path=tmp_path,
+            headers=headers_mostrar,
+            filas=filas[:20],  # mostrar primeras 20 filas
+            total_filas=len(filas),
+            nombre_archivo=file.filename,
+        )
 
-        try:
-            for f in filas:
-                # Sanitizar campos
-                codigo = _sanitize_field(f["codigo"], "codigo")
-                descripcion = _sanitize_field(f["descripcion"], "descripcion")
-                cod_catalogo = _sanitize_field(f["cod_catalogo"], "cod_catalogo")
-                um = _sanitize_field(f["um"], "um") or "UND"
-                familia = _sanitize_field(f["familia"], "familia")
-
-                if not descripcion:
-                    errores_db += 1
-                    continue
-
-                producto = Producto.query.filter_by(codigo=codigo).first()
-                if producto:
-                    producto.cod_catalogo = cod_catalogo
-                    producto.descripcion = descripcion
-                    producto.um = um
-                    producto.familia = familia
-                    if "stock_minimo" in col_indices:
-                        producto.stock_minimo = f["stock_minimo"]
-                    actualizados += 1
-                else:
-                    producto = Producto(
-                        codigo=codigo,
-                        cod_catalogo=cod_catalogo,
-                        descripcion=descripcion,
-                        um=um,
-                        familia=familia,
-                        stock_minimo=f["stock_minimo"] if "stock_minimo" in col_indices else 0.0,
-                    )
-                    db.session.add(producto)
-                    creados += 1
-
-            db.session.commit()
-            total_errores = errores_duplicados + errores_db
-            msg = f"Importación completada: {creados} creados, {actualizados} actualizados"
-            if total_errores:
-                msg += f", {total_errores} errores (duplicados omitidos)"
-            flash(msg, "success" if total_errores == 0 else "warning")
-            return redirect(url_for("routes.productos"))
-
-        except Exception:
-            db.session.rollback()
-            flash("Error de base de datos durante la importación. "
-                  "No se guardaron cambios. Verifica que los datos sean válidos.", "danger")
-            return redirect(url_for("routes.producto_importar"))
-
+    # GET → formulario normal
     return render_template("producto_importar.html")
+
+
+# ---------------------------------------------------------------------------
+# Ruta: Confirmar importación (POST separado para claridad)
+# ---------------------------------------------------------------------------
+
+@routes_bp.route("/productos/importar/confirmar", methods=["POST"])
+@login_required
+def producto_importar_confirmar():
+    """Ejecutar la importación después de la previsualización."""
+    tmp_path = request.form.get("tmp_path", "").strip()
+
+    if not tmp_path or not os.path.exists(tmp_path):
+        flash("Archivo temporal no encontrado. Vuelve a seleccionar el archivo.", "danger")
+        return redirect(url_for("routes.producto_importar"))
+
+    try:
+        headers_raw, col_indices, filas, errores_prev = _parse_excel(tmp_path)
+    except Exception:
+        errores_prev = ["Error inesperado al leer el archivo temporal."]
+        filas = None
+
+    if errores_prev:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        for e in errores_prev:
+            flash(e, "danger")
+        return redirect(url_for("routes.producto_importar"))
+
+    if not filas:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        flash("No se encontraron filas válidas para importar.", "warning")
+        return redirect(url_for("routes.producto_importar"))
+
+    # --- Ejecutar importación en transacción atómica ---
+    creados = []
+    actualizados = []
+    errores_db = []
+
+    try:
+        for f in filas:
+            codigo = _sanitize_field(f["codigo"], "codigo")
+            descripcion = _sanitize_field(f["descripcion"], "descripcion")
+            cod_catalogo = _sanitize_field(f["cod_catalogo"], "cod_catalogo")
+            um = _sanitize_field(f["um"], "um") or "UND"
+            familia = _sanitize_field(f["familia"], "familia")
+
+            if not descripcion:
+                errores_db.append(f"'{codigo}': descripción vacía")
+                continue
+
+            producto = Producto.query.filter_by(codigo=codigo).first()
+            if producto:
+                producto.cod_catalogo = cod_catalogo or producto.cod_catalogo
+                producto.descripcion = descripcion
+                producto.um = um
+                producto.familia = familia or producto.familia
+                producto.stock_minimo = f["stock_minimo"]
+                actualizados.append(codigo)
+            else:
+                producto = Producto(
+                    codigo=codigo, cod_catalogo=cod_catalogo,
+                    descripcion=descripcion, um=um, familia=familia,
+                    stock_minimo=f["stock_minimo"],
+                )
+                db.session.add(producto)
+                creados.append(codigo)
+
+        db.session.commit()
+
+        # Limpiar temp
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
+        # Reporte detallado
+        partes = []
+        if creados:
+            partes.append(f"✅ {len(creados)} creados")
+        if actualizados:
+            partes.append(f"📝 {len(actualizados)} actualizados")
+        if errores_db:
+            partes.append(f"⚠️ {len(errores_db)} errores")
+
+        msg = "Importación completada: " + ", ".join(partes)
+
+        if errores_db:
+            msg += ". Detalles: " + "; ".join(errores_db[:5])
+            if len(errores_db) > 5:
+                msg += f" y {len(errores_db) - 5} más."
+            flash(msg, "warning")
+        else:
+            flash(msg, "success")
+
+        return redirect(url_for("routes.productos"))
+
+    except Exception as exc:
+        db.session.rollback()
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        flash(
+            f"Error de base de datos durante la importación: {exc}. "
+            "No se guardaron cambios. Verifica que los datos sean válidos.",
+            "danger",
+        )
+        return redirect(url_for("routes.producto_importar"))
 
 
 # ---------------------------------------------------------------------------
