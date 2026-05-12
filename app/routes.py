@@ -186,6 +186,11 @@ COL_MAP = {
 
 COL_MAP_ENTRADA = {
     "CODIGO": "codigo",
+    "COD. CATALOGO": "cod_catalogo",
+    "CATALOGO": "cod_catalogo",
+    "DESCRIPCION DEL PRODUCTO": "descripcion",
+    "DESCRIPCION": "descripcion",
+    "DESCRIPCIÓN": "descripcion",
     "CANTIDAD": "cantidad",
     "CANTIDA": "cantidad",
     "U.M2": "um",
@@ -202,10 +207,16 @@ COL_MAP_ENTRADA = {
     "G.REMISION": "guia",
     "GUIA": "guia",
     "GUIA REMISION": "guia",
+    "FAMILIA": "familia",
 }
 
 COL_MAP_SALIDA = {
     "CODIGO": "codigo",
+    "COD. CATALOGO": "cod_catalogo",
+    "CATALOGO": "cod_catalogo",
+    "DESCRIPCION DEL PRODUCTO": "descripcion",
+    "DESCRIPCION": "descripcion",
+    "DESCRIPCIÓN": "descripcion",
     "CANTIDAD": "cantidad",
     "U.M2": "um",
     "U.M": "um",
@@ -334,13 +345,13 @@ def producto_plantilla():
 
 
 HEADERS_PLANTILLA_ENTRADA = [
-    "CODIGO", "CANTIDAD", "U.M2", "ZONA", "UBICACIÓN", "ALM",
-    "F.INGRESO", "OC", "G.REMISION",
+    "CODIGO", "COD. CATALOGO", "DESCRIPCION DEL PRODUCTO", "CANTIDA",
+    "U.M2", "ZONA", "UBICACIÓN", "ALM", "F.INGRESO", "OC", "G.REMISION", "FAMILIA",
 ]
 
 HEADERS_PLANTILLA_SALIDA = [
-    "CODIGO", "CANTIDAD", "U.M2", "F. SALIDA", "N° VALE", "OI",
-    "C.COSTO", "MAQUINA", "CATEGORIA",
+    "CODIGO", "COD. CATALOGO", "DESCRIPCION DEL PRODUCTO", "CANTIDAD",
+    "U.M2", "F. SALIDA", "N° VALE", "OI", "C.COSTO", "MAQUINA", "CATEGORIA",
 ]
 
 
@@ -384,9 +395,9 @@ def _generar_plantilla(headers, titulo, nombre_archivo, ejemplos):
 @login_required
 def entradas_plantilla():
     """Descargar plantilla Excel para importar entradas."""
-    ejemplos = ["(Ej: P001)", "(Ej: 10)", "(Ej: UND)", "(Ej: ZONA-A)",
-                "(Ej: EST-01)", "(Ej: ALM-01)", "(Ej: 01/01/2025)",
-                "(Ej: OC-001)", "(Ej: GR-001)"]
+    ejemplos = ["(Ej: P001)", "(Ej: CAT-001)", "(Ej: Tornillo M8x30)", "(Ej: 10)",
+                "(Ej: UND)", "(Ej: ZONA-A)", "(Ej: EST-01)", "(Ej: ALM-01)",
+                "(Ej: 01/01/2025)", "(Ej: OC-001)", "(Ej: GR-001)", "(Ej: FERRETERIA)"]
     output, error = _generar_plantilla(
         HEADERS_PLANTILLA_ENTRADA, "ENTRADA", "plantilla_entrada.xlsx", ejemplos
     )
@@ -402,9 +413,9 @@ def entradas_plantilla():
 @login_required
 def salidas_plantilla():
     """Descargar plantilla Excel para importar salidas."""
-    ejemplos = ["(Ej: P001)", "(Ej: 5)", "(Ej: UND)", "(Ej: 15/01/2025)",
-                "(Ej: V-001)", "(Ej: OI-001)", "(Ej: CC-100)",
-                "(Ej: MAQ-01)", "(Ej: GENERAL)"]
+    ejemplos = ["(Ej: P001)", "(Ej: CAT-001)", "(Ej: Tuerca M8)", "(Ej: 5)",
+                "(Ej: UND)", "(Ej: 15/01/2025)", "(Ej: V-001)", "(Ej: OI-001)",
+                "(Ej: CC-100)", "(Ej: MAQ-01)", "(Ej: GENERAL)"]
     output, error = _generar_plantilla(
         HEADERS_PLANTILLA_SALIDA, "SALIDA", "plantilla_salida.xlsx", ejemplos
     )
@@ -836,6 +847,14 @@ def _parse_excel_movimiento(tipo, file):
             "fecha": fecha,
         }
 
+        # Campos comunes: catálogo y descripción (opcionales)
+        fila["cod_catalogo"] = _sanitize_field(
+            _excel_val(excel_row, col_indices, "cod_catalogo") if "cod_catalogo" in col_indices else "", "cod_catalogo"
+        )
+        fila["descripcion"] = _sanitize_field(
+            _excel_val(excel_row, col_indices, "descripcion") if "descripcion" in col_indices else "", "descripcion"
+        )
+
         if tipo == "entrada":
             fila["zona"] = _sanitize_field(
                 _excel_val(excel_row, col_indices, "zona") if "zona" in col_indices else "", "zona"
@@ -851,6 +870,9 @@ def _parse_excel_movimiento(tipo, file):
             )
             fila["guia"] = _sanitize_field(
                 _excel_val(excel_row, col_indices, "guia") if "guia" in col_indices else "", "guia_remision"
+            )
+            fila["familia"] = _sanitize_field(
+                _excel_val(excel_row, col_indices, "familia") if "familia" in col_indices else "", "familia"
             )
         else:
             fila["nro_vale"] = _sanitize_field(
@@ -990,6 +1012,7 @@ def entradas_importar_confirmar():
                 alm=f.get("alm", "ALM-01"),
                 oc=f.get("oc", ""),
                 guia_remision=f.get("guia", ""),
+                familia=f.get("familia", ""),
                 fecha_ingreso=f.get("fecha") or datetime.now(timezone.utc),
             )
             producto.stock_actual += f["cantidad"]
