@@ -15,7 +15,17 @@ routes_bp = Blueprint("routes", __name__)
 # ---------------------------------------------------------------------------
 
 def _init_admin_user():
-    """Crea el usuario administrador por defecto si no existe."""
+    """Crea el usuario administrador por defecto si no existe.
+    
+    También elimina el viejo usuario 'admin' si aún existe en la BD.
+    """
+    # Eliminar el viejo admin:admin si existe (migración desde versión anterior)
+    viejo_admin = User.query.filter_by(username="admin").first()
+    if viejo_admin and viejo_admin.username != User.ADMIN_USERNAME:
+        db.session.delete(viejo_admin)
+        db.session.commit()
+
+    # Crear el nuevo administrador si no existe
     admin_username = User.ADMIN_USERNAME  # "cponce123.com@gmail.com"
     if not User.query.filter_by(username=admin_username).first():
         admin = User(username=admin_username)
