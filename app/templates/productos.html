@@ -17,6 +17,15 @@
         <a href="{{ url_for('routes.producto_nuevo') }}" class="btn btn-primary">
             <i class="bi bi-plus-lg me-1"></i>Nuevo
         </a>
+        {% if pagination.items %}
+        <form method="POST" action="{{ url_for('routes.producto_eliminar_todos') }}"
+              style="display:inline;"
+              onsubmit="return confirm('¿Eliminar TODOS los productos que NO tengan movimientos asociados? Esta acción no se puede deshacer.');">
+            <button type="submit" class="btn btn-outline-danger" title="Eliminar todos los productos sin movimientos">
+                <i class="bi bi-trash3 me-1"></i>Borrar Todos
+            </button>
+        </form>
+        {% endif %}
     </div>
 </div>
 

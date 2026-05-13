@@ -202,6 +202,32 @@ def producto_eliminar(producto_id):
     return redirect(url_for("routes.productos"))
 
 
+@routes_bp.route("/productos/eliminar-todos", methods=["POST"])
+@login_required
+def producto_eliminar_todos():
+    """Elimina todos los productos que NO tengan movimientos asociados."""
+    productos_con_movimientos = set()
+    for e in db.session.query(Entrada.producto_id).distinct().all():
+        productos_con_movimientos.add(e[0])
+    for s in db.session.query(Salida.producto_id).distinct().all():
+        productos_con_movimientos.add(s[0])
+
+    productos_a_eliminar = Producto.query.filter(
+        ~Producto.id.in_(productos_con_movimientos)
+    ).all() if productos_con_movimientos else Producto.query.all()
+
+    count = len(productos_a_eliminar)
+    if count == 0:
+        flash("No hay productos sin movimientos para eliminar.", "info")
+        return redirect(url_for("routes.productos"))
+
+    for p in productos_a_eliminar:
+        db.session.delete(p)
+    db.session.commit()
+    flash(f"Se eliminaron {count} producto(s) sin movimientos.", "success")
+    return redirect(url_for("routes.productos"))
+
+
 # ---------------------------------------------------------------------------
 # Importar / Exportar productos en Excel
 # ---------------------------------------------------------------------------

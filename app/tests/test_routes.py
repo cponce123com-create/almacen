@@ -217,6 +217,42 @@ class TestProductos:
         assert resp.status_code == 200
         assert b"movimientos asociados" in resp.data
 
+    def test_producto_eliminar_todos_sin_movimientos(self, auth_client, sample_productos, app):
+        """Elimina todos los productos que no tienen movimientos."""
+        with app.app_context():
+            # P001 tiene 1 entrada, P002 no tiene movs, P003 no tiene movs
+            p = Producto.query.filter_by(codigo="P001").first()
+            e = Entrada(producto_id=p.id, cantidad=10)
+            db.session.add(e)
+            db.session.commit()
+        resp = auth_client.post("/productos/eliminar-todos", follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"eliminaron" in resp.data
+        # P002 y P003 deberían eliminarse, P001 se conserva
+        with app.app_context():
+            assert Producto.query.filter_by(codigo="P002").first() is None
+            assert Producto.query.filter_by(codigo="P003").first() is None
+            assert Producto.query.filter_by(codigo="P001").first() is not None
+
+    def test_producto_eliminar_todos_con_todos_con_movimientos(self, auth_client, sample_productos, app):
+        """No elimina ningún producto si todos tienen movimientos."""
+        with app.app_context():
+            for p in Producto.query.all():
+                e = Entrada(producto_id=p.id, cantidad=1)
+                db.session.add(e)
+            db.session.commit()
+        resp = auth_client.post("/productos/eliminar-todos", follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"No hay productos sin movimientos" in resp.data
+        with app.app_context():
+            assert Producto.query.count() == 3
+
+    def test_producto_eliminar_todos_sin_productos(self, auth_client):
+        """No falla si no hay productos en la BD."""
+        resp = auth_client.post("/productos/eliminar-todos", follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"No hay productos sin movimientos" in resp.data
+
 
 # ===========================================================================
 # Tests de Entradas / Salidas manuales
