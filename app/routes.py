@@ -4,6 +4,9 @@ import re
 from datetime import datetime, timezone
 from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file
 from flask_login import login_user, logout_user, login_required, current_user
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 from app import db
 from app.models import User, Producto, Entrada, Salida
 
@@ -18,6 +21,7 @@ def _init_admin_user():
     """Crea el usuario administrador por defecto si no existe.
     
     También elimina el viejo usuario 'admin' si aún existe en la BD.
+    La contraseña del admin se configura vía variable de entorno ADMIN_PASSWORD.
     """
     # Eliminar el viejo admin:admin si existe (migración desde versión anterior)
     viejo_admin = User.query.filter_by(username="admin").first()
@@ -26,10 +30,11 @@ def _init_admin_user():
         db.session.commit()
 
     # Crear el nuevo administrador si no existe
-    admin_username = User.ADMIN_USERNAME  # "cponce123.com@gmail.com"
+    admin_username = User.ADMIN_USERNAME
     if not User.query.filter_by(username=admin_username).first():
+        admin_password = os.environ.get("ADMIN_PASSWORD", "Hadrones456%")
         admin = User(username=admin_username)
-        admin.set_password("Hadrones456%")
+        admin.set_password(admin_password)
         db.session.add(admin)
         db.session.commit()
 
@@ -357,7 +362,6 @@ def _sanitize_field(valor, field_name):
 
 def _make_excel_workbook():
     """Crear workbook con openpyxl y devolver hoja activa."""
-    import openpyxl
     return openpyxl.Workbook()
 
 
@@ -369,14 +373,6 @@ def _make_excel_workbook():
 @login_required
 def producto_plantilla():
     """Descargar plantilla Excel vacía con estructura MAESTRA."""
-    try:
-        import openpyxl
-        from openpyxl.styles import Font, PatternFill, Alignment
-        from openpyxl.utils import get_column_letter
-    except ImportError:
-        flash("openpyxl no está instalado.", "danger")
-        return redirect(url_for("routes.productos"))
-
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "MAESTRA"
@@ -467,13 +463,6 @@ HEADERS_PLANTILLA_SALIDA = [
 
 def _generar_plantilla(headers, titulo, nombre_archivo, ejemplos):
     """Helper para generar una plantilla Excel descargable."""
-    try:
-        import openpyxl
-        from openpyxl.styles import Font, PatternFill, Alignment
-        from openpyxl.utils import get_column_letter
-    except ImportError:
-        return None, "openpyxl no está instalado."
-
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = titulo
@@ -551,12 +540,6 @@ def _parse_excel(file):
     ``file`` puede ser una ruta (str) o un objeto file-like.
     """
     errores_prev = []
-
-    try:
-        import openpyxl
-    except ImportError:
-        errores_prev.append("openpyxl no está instalado en el servidor.")
-        return None, None, None, errores_prev
 
     try:
         wb = openpyxl.load_workbook(file, data_only=True)
@@ -861,12 +844,6 @@ def _parse_excel_movimiento(tipo, file):
     """
     errores = []
     col_map = COL_MAP_ENTRADA if tipo == "entrada" else COL_MAP_SALIDA
-
-    try:
-        import openpyxl
-    except ImportError:
-        errores.append("openpyxl no está instalado en el servidor.")
-        return None, None, None, errores
 
     try:
         wb = openpyxl.load_workbook(file, data_only=True)
@@ -1324,13 +1301,6 @@ def salidas_importar_confirmar():
 @login_required
 def producto_exportar():
     """Exportar todos los productos a un archivo Excel."""
-    try:
-        import openpyxl
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-        from openpyxl.utils import get_column_letter
-    except ImportError:
-        flash("openpyxl no está instalado.", "danger")
-        return redirect(url_for("routes.productos"))
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -1627,13 +1597,6 @@ def existencias():
 @login_required
 def existencias_exportar():
     """Exportar existencias filtradas a Excel."""
-    try:
-        import openpyxl
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-        from openpyxl.utils import get_column_letter
-    except ImportError:
-        flash("openpyxl no está instalado.", "danger")
-        return redirect(url_for("routes.existencias"))
 
     search = request.args.get("search", "").strip()
     familia = request.args.get("familia", "").strip()
@@ -1896,13 +1859,6 @@ def historial():
 @login_required
 def historial_exportar():
     """Exportar historial de movimientos filtrado a Excel."""
-    try:
-        import openpyxl
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-        from openpyxl.utils import get_column_letter
-    except ImportError:
-        flash("openpyxl no está instalado.", "danger")
-        return redirect(url_for("routes.historial"))
 
     producto_search = request.args.get("producto", "").strip()
     fecha_desde = request.args.get("fecha_desde", "").strip()

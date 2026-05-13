@@ -15,10 +15,8 @@ def app():
     tmp_db.close()
     os.environ["DATABASE_URL"] = f"sqlite:///{tmp_db.name}"
 
-    application = create_app()
-    application.config["TESTING"] = True
+    application = create_app(testing=True)
     application.config["WTF_CSRF_ENABLED"] = False
-    application.config["SECRET_KEY"] = "test-secret"
 
     with application.app_context():
         db.create_all()

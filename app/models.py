@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 from app import db, login_manager
 from flask_login import UserMixin
@@ -10,7 +11,7 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
 
-    ADMIN_USERNAME = "cponce123.com@gmail.com"
+    ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "cponce123.com@gmail.com")
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)

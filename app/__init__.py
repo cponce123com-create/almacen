@@ -12,13 +12,14 @@ login_manager = LoginManager()
 migrate = Migrate()
 
 
-def create_app():
+def create_app(testing=False):
     app = Flask(__name__)
+    app.config["TESTING"] = testing
 
     # ------------------------------------------------------------------
     # Logging (archivo rotativo útil para debug en Render)
     # ------------------------------------------------------------------
-    if not app.debug:
+    if not app.debug and not testing:
         log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs")
         os.makedirs(log_dir, exist_ok=True)
         log_file = os.path.join(log_dir, "almacen.log")
@@ -54,7 +55,16 @@ def create_app():
         app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{os.path.join(basedir, 'almacen.db')}"
 
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "clave-secreta-desarrollo-2024")
+    app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY")
+    if not app.config["SECRET_KEY"]:
+        if app.debug or app.config.get("TESTING"):
+            app.config["SECRET_KEY"] = "dev-secret-key-insecure"
+        else:
+            raise RuntimeError(
+                "SECRET_KEY no está configurado. "
+                "Define la variable de entorno SECRET_KEY antes de iniciar."
+            )
+    app.config["PERMANENT_SESSION_LIFETIME"] = 1800  # 30 minutos
     app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB límite de subida
 
     # Inicializar extensiones
