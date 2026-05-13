@@ -113,6 +113,11 @@ def dashboard():
     total_productos = Producto.query.count()
     total_entradas = Entrada.query.count()
     total_salidas = Salida.query.count()
+    total_oc = OrdenCompra.query.count()
+    oc_pendientes = OrdenCompra.query.filter(
+        OrdenCompra.estado.in_(["PENDIENTE", "PARCIAL"])
+    ).count()
+    oc_recientes = OrdenCompra.query.order_by(OrdenCompra.created_at.desc()).limit(5).all()
     stock_bajo = Producto.query.filter(
         Producto.stock_minimo > 0,
         Producto.stock_actual <= Producto.stock_minimo
@@ -147,6 +152,9 @@ def dashboard():
         total_productos=total_productos,
         total_entradas=total_entradas,
         total_salidas=total_salidas,
+        total_oc=total_oc,
+        oc_pendientes=oc_pendientes,
+        oc_recientes=oc_recientes,
         stock_bajo=stock_bajo,
         movimientos=movimientos,
     )
@@ -640,13 +648,7 @@ def producto_importar():
       1. POST sin confirmar → parsea el archivo, muestra vista previa.
       2. POST con confirmar  → ejecuta la importación real.
     """
-    # ---------------------------------------------------------------
-        # ---------------------------------------------------------------
     # Manejo de peticiones
-    # ---------------------------------------------------------------
-    # ---------------------------------------------------------------
-    # Manejo de peticiones
-    # ---------------------------------------------------------------
     import uuid as _uuid
     import tempfile as _tempfile
 
@@ -2221,12 +2223,14 @@ def historial_exportar():
 @routes_bp.route("/familias")
 @login_required
 def familias():
-    """Listar todas las familias."""
+    """Listar todas las familias con paginación."""
     check = _admin_required()
     if check:
         return check
-    familias = Familia.query.order_by(Familia.nombre).all()
-    return render_template("familias.html", familias=familias)
+    page = request.args.get("page", 1, type=int)
+    per_page = 20
+    pagination = Familia.query.order_by(Familia.nombre).paginate(page=page, per_page=per_page, error_out=False)
+    return render_template("familias.html", pagination=pagination)
 
 
 @routes_bp.route("/familias/nuevo", methods=["GET", "POST"])
@@ -2337,12 +2341,14 @@ def familia_eliminar(familia_id):
 @routes_bp.route("/almacenes")
 @login_required
 def almacenes():
-    """Listar todos los almacenes."""
+    """Listar todos los almacenes con paginación."""
     check = _admin_required()
     if check:
         return check
-    almacenes = Almacen.query.order_by(Almacen.codigo).all()
-    return render_template("almacenes.html", almacenes=almacenes)
+    page = request.args.get("page", 1, type=int)
+    per_page = 20
+    pagination = Almacen.query.order_by(Almacen.codigo).paginate(page=page, per_page=per_page, error_out=False)
+    return render_template("almacenes.html", pagination=pagination)
 
 
 @routes_bp.route("/almacenes/nuevo", methods=["GET", "POST"])
@@ -2463,9 +2469,26 @@ def almacen_eliminar(almacen_id):
 @routes_bp.route("/oc")
 @login_required
 def oc_lista():
-    """Listar todas las órdenes de compra."""
-    ordenes = OrdenCompra.query.order_by(OrdenCompra.created_at.desc()).all()
-    return render_template("oc_lista.html", ordenes=ordenes)
+    """Listar órdenes de compra con paginación y filtros."""
+    search = request.args.get("search", "").strip()
+    estado_filtro = request.args.get("estado", "").strip()
+    page = request.args.get("page", 1, type=int)
+    per_page = 20
+
+    query = OrdenCompra.query
+    if search:
+        like = f"%{search}%"
+        query = query.filter(
+            OrdenCompra.numero.ilike(like)
+            | OrdenCompra.proveedor.ilike(like)
+        )
+    if estado_filtro:
+        query = query.filter(OrdenCompra.estado == estado_filtro.upper())
+
+    query = query.order_by(OrdenCompra.created_at.desc())
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    return render_template("oc_lista.html", pagination=pagination, search=search, estado_filtro=estado_filtro)
 
 
 @routes_bp.route("/oc/nuevo", methods=["GET", "POST"])
@@ -2524,9 +2547,18 @@ def oc_editar(oc_id):
                 flash(e, "danger")
             return render_template("oc_form.html", oc=oc, valores=request.form)
 
+        old_numero = oc.numero
+        old_proveedor = oc.proveedor
+        old_estado = oc.estado
+
         oc.numero = numero
         oc.proveedor = proveedor
         oc.estado = estado
+
+        audit_log("ordenes_compra", oc.id, "numero", old_numero, numero, current_user.username)
+        audit_log("ordenes_compra", oc.id, "proveedor", old_proveedor, proveedor, current_user.username)
+        audit_log("ordenes_compra", oc.id, "estado", old_estado, estado, current_user.username)
+
         db.session.commit()
         flash(f"OC '{numero}' actualizada correctamente.", "success")
         return redirect(url_for("routes.oc_lista"))
@@ -2562,7 +2594,9 @@ def oc_cerrar(oc_id):
         flash("Orden de compra no encontrada.", "danger")
         return redirect(url_for("routes.oc_lista"))
 
+    old_estado = oc.estado
     oc.estado = "CERRADA"
+    audit_log("ordenes_compra", oc.id, "estado", old_estado, "CERRADA", current_user.username)
     db.session.commit()
     flash(f"OC '{oc.numero}' marcada como CERRADA.", "success")
     return redirect(url_for("routes.oc_lista"))
@@ -2585,12 +2619,14 @@ def _admin_required(redirect_to="routes.dashboard"):
 @routes_bp.route("/admin/usuarios")
 @login_required
 def admin_usuarios():
-    """Lista de usuarios del sistema."""
+    """Lista de usuarios del sistema con paginación."""
     check = _admin_required()
     if check:
         return check
-    usuarios = User.query.order_by(User.username.asc()).all()
-    return render_template("admin_usuarios.html", usuarios=usuarios)
+    page = request.args.get("page", 1, type=int)
+    per_page = 20
+    pagination = User.query.order_by(User.username.asc()).paginate(page=page, per_page=per_page, error_out=False)
+    return render_template("admin_usuarios.html", pagination=pagination)
 
 
 @routes_bp.route("/admin/usuarios/nuevo", methods=["GET", "POST"])

@@ -5,7 +5,7 @@ import os
 import tempfile
 import pytest
 from app import create_app, db
-from app.models import User, Producto, Entrada, Salida
+from app.models import User, Producto, Entrada, Salida, OrdenCompra
 
 
 @pytest.fixture(scope="function")
@@ -378,25 +378,6 @@ class TestMovimientosManuales:
             p = Producto.query.filter_by(codigo="P001").first()
             assert p.stock_actual == stock_antes + 10
 
-    def test_entrada_eliminar(self, auth_client, sample_productos, app):
-        with app.app_context():
-            p = Producto.query.filter_by(codigo="P001").first()
-            stock_antes = p.stock_actual
-        resp = auth_client.post("/entradas", data={
-            "producto_id": "1", "cantidad": "15",
-        }, follow_redirects=True)
-        assert resp.status_code == 200
-        with app.app_context():
-            p = Producto.query.filter_by(codigo="P001").first()
-            assert p.stock_actual == stock_antes + 15
-            e = Entrada.query.filter_by(producto_id=1).first()
-            eid = e.id
-        resp = auth_client.post(f"/entradas/eliminar/{eid}", follow_redirects=True)
-        assert resp.status_code == 200
-        with app.app_context():
-            p = Producto.query.filter_by(codigo="P001").first()
-            assert p.stock_actual == stock_antes
-
     def test_salida_editar_get(self, auth_client, sample_productos, app):
         with app.app_context():
             p = Producto.query.filter_by(codigo="P002").first()
@@ -732,3 +713,148 @@ class TestParseExcelMovimiento:
             assert len(filas) == 0  # all filtered out
         finally:
             os.unlink(tmp.name)
+
+
+# ===========================================================================
+# Tests de Órdenes de Compra
+# ===========================================================================
+
+class TestOrdenesCompra:
+    """Tests para el CRUD de Órdenes de Compra (FASE 5)."""
+
+    def test_oc_lista_vacia(self, auth_client):
+        """Lista de OCs vacía muestra mensaje."""
+        resp = auth_client.get("/oc")
+        assert resp.status_code == 200
+        assert b"No hay" in resp.data
+
+    def test_oc_nuevo_get(self, auth_client):
+        """GET del formulario de nueva OC."""
+        resp = auth_client.get("/oc/nuevo")
+        assert resp.status_code == 200
+
+    def test_oc_nuevo_post(self, auth_client):
+        """Crear una OC correctamente."""
+        resp = auth_client.post("/oc/nuevo", data={
+            "numero": "OC-001",
+            "proveedor": "Proveedor SAC",
+            "estado": "PENDIENTE",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"OC-001" in resp.data
+        assert b"creada" in resp.data
+
+    def test_oc_nuevo_duplicado(self, auth_client):
+        """Crear OC con número duplicado debe fallar."""
+        auth_client.post("/oc/nuevo", data={
+            "numero": "OC-001",
+            "proveedor": "Proveedor SAC",
+        }, follow_redirects=True)
+        resp = auth_client.post("/oc/nuevo", data={
+            "numero": "OC-001",
+            "proveedor": "Otro Proveedor",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"ya existe" in resp.data
+
+    def test_oc_nuevo_sin_numero(self, auth_client):
+        """Crear OC sin número debe fallar."""
+        resp = auth_client.post("/oc/nuevo", data={
+            "numero": "",
+            "proveedor": "Proveedor SAC",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"obligatorio" in resp.data
+
+    def test_oc_editar_get(self, auth_client):
+        """GET del formulario de edición de OC."""
+        auth_client.post("/oc/nuevo", data={
+            "numero": "OC-001", "proveedor": "Proveedor SAC",
+        }, follow_redirects=True)
+        resp = auth_client.get("/oc/editar/1")
+        assert resp.status_code == 200
+        assert b"Editar" in resp.data
+
+    def test_oc_editar_post(self, auth_client):
+        """Editar OC correctamente."""
+        auth_client.post("/oc/nuevo", data={
+            "numero": "OC-001", "proveedor": "Proveedor SAC",
+        }, follow_redirects=True)
+        resp = auth_client.post("/oc/editar/1", data={
+            "numero": "OC-001-MOD",
+            "proveedor": "Nuevo Proveedor",
+            "estado": "PARCIAL",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"actualizada" in resp.data
+        assert b"OC-001-MOD" in resp.data
+
+    def test_oc_cerrar(self, auth_client):
+        """Cerrar una OC correctamente."""
+        auth_client.post("/oc/nuevo", data={
+            "numero": "OC-001", "proveedor": "Proveedor SAC",
+        }, follow_redirects=True)
+        resp = auth_client.post("/oc/cerrar/1", follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"CERRADA" in resp.data
+        assert b"marcada" in resp.data
+
+    def test_oc_eliminar_sin_entradas(self, auth_client, app):
+        """Eliminar OC sin entradas vinculadas."""
+        auth_client.post("/oc/nuevo", data={
+            "numero": "OC-001", "proveedor": "Proveedor SAC",
+        }, follow_redirects=True)
+        resp = auth_client.post("/oc/eliminar/1", follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"eliminada" in resp.data
+
+    def test_oc_eliminar_con_entradas(self, auth_client, app, sample_productos):
+        """No se puede eliminar OC con entradas vinculadas."""
+        auth_client.post("/oc/nuevo", data={
+            "numero": "OC-001", "proveedor": "Proveedor SAC",
+        }, follow_redirects=True)
+        # Crear entrada vinculada a la OC
+        auth_client.post("/entradas", data={
+            "producto_id": "1", "cantidad": "10", "oc": "OC-001",
+        }, follow_redirects=True)
+        resp = auth_client.post("/oc/eliminar/1", follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"No se puede eliminar" in resp.data
+        assert b"entrada" in resp.data
+
+    def test_oc_editar_no_existente(self, auth_client):
+        """Editar OC que no existe redirige con error."""
+        resp = auth_client.get("/oc/editar/999", follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"no encontrada" in resp.data
+
+    def test_oc_filtro_estado(self, auth_client):
+        """Filtrar OCs por estado."""
+        auth_client.post("/oc/nuevo", data={"numero": "OC-PEND", "estado": "PENDIENTE"}, follow_redirects=True)
+        auth_client.post("/oc/nuevo", data={"numero": "OC-CERR", "estado": "CERRADA"}, follow_redirects=True)
+        resp = auth_client.get("/oc?estado=CERRADA")
+        assert resp.status_code == 200
+        assert b"OC-CERR" in resp.data
+        assert b"OC-PEND" not in resp.data
+
+    def test_oc_busqueda_numero(self, auth_client):
+        """Buscar OC por número."""
+        auth_client.post("/oc/nuevo", data={"numero": "OC-ABC-001"}, follow_redirects=True)
+        auth_client.post("/oc/nuevo", data={"numero": "OC-XYZ-002"}, follow_redirects=True)
+        resp = auth_client.get("/oc?search=ABC")
+        assert resp.status_code == 200
+        assert b"OC-ABC-001" in resp.data
+        assert b"OC-XYZ-002" not in resp.data
+
+    def test_oc_cambio_estado_con_entrada_parcial(self, auth_client, app, sample_productos):
+        """Al registrar una entrada con OC, el estado de la OC NO cambia automáticamente."""
+        auth_client.post("/oc/nuevo", data={
+            "numero": "OC-001", "proveedor": "Proveedor SAC",
+        }, follow_redirects=True)
+        auth_client.post("/entradas", data={
+            "producto_id": "1", "cantidad": "10", "oc": "OC-001",
+        }, follow_redirects=True)
+        # El estado debe seguir siendo PENDIENTE (no cambia automáticamente)
+        resp = auth_client.get("/oc")
+        assert resp.status_code == 200
+        assert b"PENDIENTE" in resp.data

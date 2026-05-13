@@ -9,9 +9,41 @@
     </a>
 </div>
 
+<!-- Filtros -->
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-2 align-items-end">
+            <div class="col-md-5">
+                <label for="search" class="form-label small">Buscar</label>
+                <input type="text" class="form-control form-control-sm" id="search" name="search"
+                       value="{{ search }}" placeholder="Número o proveedor...">
+            </div>
+            <div class="col-md-3">
+                <label for="estado" class="form-label small">Estado</label>
+                <select class="form-select form-select-sm" id="estado" name="estado">
+                    <option value="">Todos</option>
+                    <option value="PENDIENTE" {{ 'selected' if estado_filtro == 'PENDIENTE' }}>Pendiente</option>
+                    <option value="PARCIAL" {{ 'selected' if estado_filtro == 'PARCIAL' }}>Parcial</option>
+                    <option value="CERRADA" {{ 'selected' if estado_filtro == 'CERRADA' }}>Cerrada</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <div class="d-flex gap-1">
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        <i class="bi bi-search"></i> Filtrar
+                    </button>
+                    <a href="{{ url_for('routes.oc_lista') }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-x-lg"></i> Limpiar
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if pagination.items %}
 <div class="card shadow-sm border-0">
     <div class="card-body p-0">
-        {% if ordenes %}
         <div class="table-responsive">
             <table class="table table-hover mb-0">
                 <thead class="table-dark">
@@ -26,7 +58,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for oc in ordenes %}
+                    {% for oc in pagination.items %}
                     <tr>
                         <td>{{ oc.id }}</td>
                         <td><strong>{{ oc.numero }}</strong></td>
@@ -64,15 +96,52 @@
                 </tbody>
             </table>
         </div>
+    </div>
+</div>
+
+<!-- Paginación -->
+<nav aria-label="Paginación" class="mt-3">
+    <ul class="pagination justify-content-center">
+        <li class="page-item {{ 'disabled' if not pagination.has_prev }}">
+            <a class="page-link" href="{{ url_for('routes.oc_lista', page=pagination.prev_num, search=search, estado=estado_filtro) if pagination.has_prev else '#' }}">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
+        {% for num in pagination.iter_pages() %}
+        {% if num %}
+        <li class="page-item {{ 'active' if num == pagination.page }}">
+            <a class="page-link" href="{{ url_for('routes.oc_lista', page=num, search=search, estado=estado_filtro) }}">{{ num }}</a>
+        </li>
         {% else %}
+        <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+        {% endfor %}
+        <li class="page-item {{ 'disabled' if not pagination.has_next }}">
+            <a class="page-link" href="{{ url_for('routes.oc_lista', page=pagination.next_num, search=search, estado=estado_filtro) if pagination.has_next else '#' }}">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+    </ul>
+</nav>
+
+{% else %}
+<div class="card shadow-sm border-0">
+    <div class="card-body">
         <div class="text-center py-5 text-muted">
             <i class="bi bi-file-text display-4 d-block mb-3"></i>
-            <p>No hay órdenes de compra registradas.</p>
+            <p>
+                {% if search or estado_filtro %}
+                No hay OCs con los filtros aplicados.
+                <a href="{{ url_for('routes.oc_lista') }}">Mostrar todas</a>
+                {% else %}
+                No hay órdenes de compra registradas.
+                {% endif %}
+            </p>
             <a href="{{ url_for('routes.oc_nuevo') }}" class="btn btn-primary">
                 <i class="bi bi-plus-lg me-1"></i>Crear primera OC
             </a>
         </div>
-        {% endif %}
     </div>
 </div>
+{% endif %}
 {% endblock %}

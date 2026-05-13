@@ -46,6 +46,20 @@
         </div>
     </div>
     <div class="col-md-3 col-sm-6">
+        <div class="card border-0 shadow-sm text-bg-secondary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title mb-0 opacity-75">OCs Pendientes</h6>
+                        <h2 class="mb-0">{{ oc_pendientes }}</h2>
+                        <small class="opacity-75">Total: {{ total_oc }}</small>
+                    </div>
+                    <i class="bi bi-file-text display-6 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
         <div class="card border-0 shadow-sm text-bg-danger">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
@@ -85,7 +99,7 @@
 
 <div class="row g-3">
     <!-- Alertas de stock bajo -->
-    <div class="col-lg-5">
+    <div class="col-lg-6">
         <div class="card shadow-sm border-0">
             <div class="card-header bg-white fw-semibold">
                 <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>Alertas de Stock Bajo
@@ -131,8 +145,58 @@
         </div>
     </div>
 
-    <!-- Movimientos recientes -->
-    <div class="col-lg-7">
+    <!-- Órdenes de Compra Recientes -->
+    <div class="col-lg-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white fw-semibold">
+                <i class="bi bi-file-text me-2"></i>Órdenes de Compra Recientes
+            </div>
+            <div class="card-body p-0">
+                {% if oc_recientes %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Número</th>
+                                <th>Proveedor</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for oc in oc_recientes %}
+                            <tr>
+                                <td><strong>{{ oc.numero }}</strong></td>
+                                <td>{{ oc.proveedor or "—" }}</td>
+                                <td>
+                                    {% set estados = {"PENDIENTE": "warning", "PARCIAL": "info", "CERRADA": "success"} %}
+                                    <span class="badge bg-{{ estados.get(oc.estado, 'secondary') }}">{{ oc.estado }}</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-file-text display-6"></i>
+                    <p class="mt-2 mb-0">No hay órdenes de compra registradas.</p>
+                </div>
+                {% endif %}
+            </div>
+            {% if oc_recientes %}
+            <div class="card-footer bg-white text-end">
+                <a href="{{ url_for('routes.oc_lista') }}" class="btn btn-sm btn-outline-primary">
+                    Ver todas <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Movimientos recientes -->
+<div class="row mt-3">
+    <div class="col-12">
         <div class="card shadow-sm border-0">
             <div class="card-header bg-white fw-semibold">
                 <i class="bi bi-clock-history me-2"></i>Movimientos Recientes
