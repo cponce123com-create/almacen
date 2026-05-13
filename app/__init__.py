@@ -97,6 +97,28 @@ def create_app(testing=False):
     app.register_blueprint(routes_bp)
 
     # ------------------------------------------------------------------
+    # Content Security Policy (CSP)
+    # ------------------------------------------------------------------
+    if not testing:
+        @app.after_request
+        def _add_security_headers(response):
+            csp = (
+                "default-src 'self'; "
+                "script-src 'self' https://cdn.jsdelivr.net; "
+                "style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; "
+                "font-src 'self' https://cdn.jsdelivr.net; "
+                "img-src 'self' data:; "
+                "connect-src 'self'; "
+                "frame-ancestors 'none'; "
+                "form-action 'self'"
+            )
+            response.headers["Content-Security-Policy"] = csp
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["X-Frame-Options"] = "DENY"
+            response.headers["X-XSS-Protection"] = "0"  # Obsoleto pero seguro
+            return response
+
+    # ------------------------------------------------------------------
     # Crear tablas y configurar SQLite WAL mode
     # ------------------------------------------------------------------
     with app.app_context():

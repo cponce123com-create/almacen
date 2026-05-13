@@ -2,8 +2,12 @@ services:
   - type: web
     name: almacen
     runtime: python
-    buildCommand: pip install -r requirements.txt && python build.py
-    startCommand: python -m gunicorn app.app:app --bind 0.0.0.0:$PORT
+    buildCommand: pip install -r requirements-prod.txt && python build.py
+    startCommand: gunicorn app.app:app --workers=1 --timeout=120
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: 3.14.3
+      - key: SECRET_KEY
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false

@@ -3,7 +3,7 @@ import os
 import re
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
-from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -53,6 +53,25 @@ def _validar_mime_excel(filepath):
         return header == b"PK\x03\x04"  # ZIP header
     except Exception:
         return False
+
+
+# ---------------------------------------------------------------------------
+# Health Check
+# ---------------------------------------------------------------------------
+
+@routes_bp.route("/health")
+def health():
+    """Endpoint de monitoreo para Render."""
+    try:
+        db.session.execute(db.text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+    return jsonify({
+        "status": "ok" if db_ok else "error",
+        "database": "connected" if db_ok else "disconnected",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
 
 
 # ---------------------------------------------------------------------------
