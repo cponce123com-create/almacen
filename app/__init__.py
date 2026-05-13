@@ -97,7 +97,7 @@ def create_app(testing=False):
             cols = [c["name"] for c in inspector.get_columns("productos")]
             migraciones = [
                 ("familia_id", "INTEGER REFERENCES familias(id)"),
-                ("almacen_id", "INTEGER REFERENCES almacen(id)"),
+                ("almacen_id", "INTEGER REFERENCES almacenes(id)"),
             ]
             for col_name, col_type in migraciones:
                 if col_name not in cols:
