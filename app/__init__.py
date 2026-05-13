@@ -19,9 +19,9 @@ def create_app(testing=False):
     app.config["TESTING"] = testing
 
     # ------------------------------------------------------------------
-    # Logging (archivo rotativo útil para debug en Render)
+    # Logging rotativo (siempre activo excepto en tests)
     # ------------------------------------------------------------------
-    if not app.debug and not testing:
+    if not testing:
         log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs")
         os.makedirs(log_dir, exist_ok=True)
         log_file = os.path.join(log_dir, "almacen.log")

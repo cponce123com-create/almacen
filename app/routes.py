@@ -8,6 +8,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+from sqlalchemy.orm import joinedload
 from app import db
 from app.models import User, Producto, Entrada, Salida, AuditLog, audit_log, Familia, Almacen, OrdenCompra
 
@@ -168,7 +169,7 @@ def cambiar_contrasena():
 @routes_bp.route("/")
 @login_required
 def dashboard():
-    total_productos = Producto.query.count()
+    total_productos = Producto.query.options(joinedload(Producto.familia_rel)).count()
     total_entradas = Entrada.query.count()
     total_salidas = Salida.query.count()
     total_oc = OrdenCompra.query.count()
@@ -176,14 +177,14 @@ def dashboard():
         OrdenCompra.estado.in_(["PENDIENTE", "PARCIAL"])
     ).count()
     oc_recientes = OrdenCompra.query.order_by(OrdenCompra.created_at.desc()).limit(5).all()
-    stock_bajo = Producto.query.filter(
+    stock_bajo = Producto.query.options(joinedload(Producto.familia_rel)).filter(
         Producto.stock_minimo > 0,
         Producto.stock_actual <= Producto.stock_minimo
     ).all()
 
     # Últimos 10 movimientos combinados
-    entradas_recientes = Entrada.query.order_by(Entrada.fecha_ingreso.desc()).limit(10).all()
-    salidas_recientes = Salida.query.order_by(Salida.fecha_salida.desc()).limit(10).all()
+    entradas_recientes = Entrada.query.options(joinedload(Entrada.producto)).order_by(Entrada.fecha_ingreso.desc()).limit(10).all()
+    salidas_recientes = Salida.query.options(joinedload(Salida.producto)).order_by(Salida.fecha_salida.desc()).limit(10).all()
 
     movimientos = []
     for e in entradas_recientes:
@@ -229,7 +230,7 @@ def productos():
     page = request.args.get("page", 1, type=int)
     per_page = 15
 
-    query = Producto.query
+    query = Producto.query.options(joinedload(Producto.familia_rel))
     if search:
         query = query.filter(
             Producto.descripcion.ilike(f"%{search}%")
@@ -283,9 +284,9 @@ def producto_eliminar_todos():
     for s in db.session.query(Salida.producto_id).distinct().all():
         productos_con_movimientos.add(s[0])
 
-    productos_a_eliminar = Producto.query.filter(
+    productos_a_eliminar = Producto.query.options(joinedload(Producto.familia_rel)).filter(
         ~Producto.id.in_(productos_con_movimientos)
-    ).all() if productos_con_movimientos else Producto.query.all()
+    ).all() if productos_con_movimientos else Producto.query.options(joinedload(Producto.familia_rel)).all()
 
     count = len(productos_a_eliminar)
     if count == 0:
@@ -487,7 +488,7 @@ def api_productos():
     q = request.args.get("q", "").strip()
     limit = request.args.get("limit", 20, type=int)
 
-    query = Producto.query
+    query = Producto.query.options(joinedload(Producto.familia_rel))
     if q:
         like = f"%{q}%"
         query = query.filter(
@@ -838,7 +839,7 @@ def producto_importar_confirmar():
         codigos_a_importar = [f["codigo"] for f in filas]
         existentes_map = {
             p.codigo: p
-            for p in Producto.query.filter(Producto.codigo.in_(codigos_a_importar)).all()
+            for p in Producto.query.options(joinedload(Producto.familia_rel)).filter(Producto.codigo.in_(codigos_a_importar)).all()
         }
 
         for f in filas:
@@ -1181,7 +1182,7 @@ def entradas_importar_confirmar():
 
     try:
         for f in filas:
-            producto = Producto.query.filter_by(codigo=f["codigo"]).first()
+            producto = Producto.query.options(joinedload(Producto.familia_rel)).filter_by(codigo=f["codigo"]).first()
             if not producto:
                 errores.append(f"'{f['codigo']}': producto no encontrado en BD")
                 continue
@@ -1351,7 +1352,7 @@ def salidas_importar_confirmar():
 
     try:
         for f in filas:
-            producto = Producto.query.filter_by(codigo=f["codigo"]).first()
+            producto = Producto.query.options(joinedload(Producto.familia_rel)).filter_by(codigo=f["codigo"]).first()
             if not producto:
                 errores.append(f"'{f['codigo']}': producto no encontrado en BD")
                 continue
@@ -1440,7 +1441,7 @@ def producto_exportar():
         cell.alignment = header_align
         cell.border = thin_border
 
-    productos = Producto.query.order_by(Producto.codigo.asc()).all()
+    productos = Producto.query.options(joinedload(Producto.familia_rel)).order_by(Producto.codigo.asc()).all()
     for row_idx, p in enumerate(productos, 2):
         values = [
             p.codigo, p.cod_catalogo, p.descripcion,
@@ -1491,7 +1492,7 @@ def _producto_form(producto=None):
             errores.append("El campo DESCRIPCIÓN es obligatorio.")
 
         # Validar código único
-        existente = Producto.query.filter(Producto.codigo == codigo).first()
+        existente = Producto.query.options(joinedload(Producto.familia_rel)).filter(Producto.codigo == codigo).first()
         if existente and (producto is None or existente.id != producto.id):
             errores.append(f"El código '{codigo}' ya está registrado.")
 
@@ -1553,7 +1554,7 @@ def _producto_form(producto=None):
 @routes_bp.route("/entradas", methods=["GET", "POST"])
 @login_required
 def entradas():
-    productos_list = Producto.query.order_by(Producto.descripcion.asc()).all()
+    productos_list = Producto.query.options(joinedload(Producto.familia_rel)).order_by(Producto.descripcion.asc()).all()
     ordenes_compra = OrdenCompra.query.order_by(OrdenCompra.numero.asc()).all()
 
     if request.method == "POST":
@@ -1633,7 +1634,7 @@ def entrada_editar(entrada_id):
         flash("Entrada no encontrada.", "danger")
         return redirect(url_for("routes.historial"))
     producto = entrada.producto
-    productos_list = Producto.query.order_by(Producto.descripcion.asc()).all()
+    productos_list = Producto.query.options(joinedload(Producto.familia_rel)).order_by(Producto.descripcion.asc()).all()
     ordenes_compra = OrdenCompra.query.order_by(OrdenCompra.numero.asc()).all()
 
     if request.method == "POST":
@@ -1754,7 +1755,7 @@ def entrada_eliminar(entrada_id):
 @routes_bp.route("/salidas", methods=["GET", "POST"])
 @login_required
 def salidas():
-    productos_list = Producto.query.order_by(Producto.descripcion.asc()).all()
+    productos_list = Producto.query.options(joinedload(Producto.familia_rel)).order_by(Producto.descripcion.asc()).all()
 
     if request.method == "POST":
         producto_id = request.form.get("producto_id")
@@ -1828,7 +1829,7 @@ def salida_editar(salida_id):
         flash("Salida no encontrada.", "danger")
         return redirect(url_for("routes.historial"))
     producto = salida.producto
-    productos_list = Producto.query.order_by(Producto.descripcion.asc()).all()
+    productos_list = Producto.query.options(joinedload(Producto.familia_rel)).order_by(Producto.descripcion.asc()).all()
 
     if request.method == "POST":
         cantidad_str = request.form.get("cantidad", "0").strip()
@@ -1936,7 +1937,7 @@ def existencias():
     page = request.args.get("page", 1, type=int)
     per_page = 20
 
-    query = Producto.query
+    query = Producto.query.options(joinedload(Producto.familia_rel))
     if search:
         query = query.filter(
             Producto.descripcion.ilike(f"%{search}%")
@@ -1979,7 +1980,7 @@ def existencias_exportar():
     solo_bajo = request.args.get("solo_bajo", "").strip()
     con_saldo = request.args.get("con_saldo", "1").strip()
 
-    query = Producto.query
+    query = Producto.query.options(joinedload(Producto.familia_rel))
     if search:
         query = query.filter(
             Producto.descripcion.ilike(f"%{search}%")
@@ -2052,7 +2053,7 @@ def historial():
     movimientos = []
 
     # Entradas
-    entradas_query = Entrada.query
+    entradas_query = Entrada.query.options(joinedload(Entrada.producto))
     if producto_search:
         entradas_query = entradas_query.join(Producto).filter(
             Producto.descripcion.ilike(f"%{producto_search}%")
@@ -2071,7 +2072,7 @@ def historial():
         except ValueError:
             pass
 
-    salidas_query = Salida.query
+    salidas_query = Salida.query.options(joinedload(Salida.producto))
     if producto_search:
         salidas_query = salidas_query.join(Producto).filter(
             Producto.descripcion.ilike(f"%{producto_search}%")
@@ -2272,7 +2273,7 @@ def historial_exportar():
             pass
 
     if tipo != "SALIDA":
-        for e in entradas_query.order_by(Entrada.fecha_ingreso.desc()).all():
+        for e in entradas_query.options(joinedload(Entrada.producto)).order_by(Entrada.fecha_ingreso.desc()).all():
             movimientos.append([
                 e.fecha_ingreso.strftime("%Y-%m-%d %H:%M") if e.fecha_ingreso else "",
                 "ENTRADA",
@@ -2283,7 +2284,7 @@ def historial_exportar():
                 e.ubicacion or "", e.alm or "", e.familia or "",
             ])
     if tipo != "ENTRADA":
-        for s in salidas_query.order_by(Salida.fecha_salida.desc()).all():
+        for s in salidas_query.options(joinedload(Salida.producto)).order_by(Salida.fecha_salida.desc()).all():
             movimientos.append([
                 s.fecha_salida.strftime("%Y-%m-%d %H:%M") if s.fecha_salida else "",
                 "SALIDA",
