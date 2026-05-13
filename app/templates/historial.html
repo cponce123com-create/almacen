@@ -63,6 +63,7 @@
                 <th>U.M.</th>
                 <th>Referencia</th>
                 <th>Detalle</th>
+                <th class="text-end">Acciones</th>
             </tr>
         </thead>
         <tbody>
@@ -84,6 +85,33 @@
                 <td>{{ m.um }}</td>
                 <td class="small">{{ m.referencia }}</td>
                 <td class="small text-muted">{{ m.detalle }}</td>
+                <td class="text-end text-nowrap">
+                    {% if m.tipo == 'ENTRADA' %}
+                    <a href="{{ url_for('routes.entrada_editar', entrada_id=m.id.split('-')[1]) }}"
+                       class="btn btn-sm btn-outline-primary" title="Editar entrada">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                    <form method="POST" action="{{ url_for('routes.entrada_eliminar', entrada_id=m.id.split('-')[1]) }}"
+                          style="display:inline;"
+                          onsubmit="return confirm('¿Eliminar esta entrada? Se revertirá el stock del producto.');">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar entrada">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                    {% else %}
+                    <a href="{{ url_for('routes.salida_editar', salida_id=m.id.split('-')[1]) }}"
+                       class="btn btn-sm btn-outline-primary" title="Editar salida">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                    <form method="POST" action="{{ url_for('routes.salida_eliminar', salida_id=m.id.split('-')[1]) }}"
+                          style="display:inline;"
+                          onsubmit="return confirm('¿Eliminar esta salida? Se revertirá el stock del producto.');">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar salida">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>

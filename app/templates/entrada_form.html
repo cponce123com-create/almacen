@@ -2,9 +2,13 @@
 {% block title %}Registrar Entrada - Almacén{% endblock %}
 
 {% block content %}
-<h4 class="mb-4"><i class="bi bi-arrow-down-circle me-2"></i>Registrar Entrada (Ingreso)</h4>
+<h4 class="mb-4">
+    <i class="bi bi-arrow-down-circle me-2"></i>
+    {% if entrada %}Editar Entrada #{{ entrada.id }}{% else %}Registrar Entrada (Ingreso){% endif %}
+</h4>
 
 {% set valores = valores if valores else {} %}
+{% set e = entrada if entrada else None %}
 
 <div class="row justify-content-center">
     <div class="col-lg-8">
@@ -16,10 +20,13 @@
                         <div class="col-12">
                             <label class="form-label">PRODUCTO <span class="text-danger">*</span></label>
                             <div class="position-relative">
-                                <input type="text" class="form-control" id="productoSearch" placeholder="Buscar por código o descripción..." autocomplete="off">
-                                <input type="hidden" id="producto_id" name="producto_id" value="{{ valores.get('producto_id', '') }}">
+                                <input type="text" class="form-control" id="productoSearch" placeholder="Buscar por código o descripción..." autocomplete="off"
+                                       {% if e %}value="[{{ e.producto.codigo }}] {{ e.producto.descripcion }}"{% endif %}>
+                                <input type="hidden" id="producto_id" name="producto_id" value="{{ valores.get('producto_id', e.producto_id if e else '') }}">
                                 <div id="productoDropdown" class="dropdown-menu w-100" style="max-height: 300px; overflow-y: auto; display: none;"></div>
-                                <div id="productoSelected" class="mt-1 small text-success" style="display: none;"></div>
+                                <div id="productoSelected" class="mt-1 small text-success" style="display: {% if e %}block{% else %}none{% endif %};">
+                                    {% if e %}✅ <strong>{{ e.producto.codigo }}</strong> - {{ e.producto.descripcion }}{% endif %}
+                                </div>
                             </div>
                         </div>
 
@@ -27,7 +34,7 @@
                         <div class="col-md-4">
                             <label for="cantidad" class="form-label">CANTIDAD <span class="text-danger">*</span></label>
                             <input type="number" class="form-control" id="cantidad" name="cantidad"
-                                   value="{{ valores.get('cantidad', '') }}"
+                                   value="{{ valores.get('cantidad', e.cantidad if e else '') }}"
                                    step="0.01" min="0.01" required placeholder="0.00">
                         </div>
 
@@ -35,7 +42,7 @@
                         <div class="col-md-4">
                             <label for="fecha_ingreso" class="form-label">FECHA DE INGRESO</label>
                             <input type="date" class="form-control" id="fecha_ingreso" name="fecha_ingreso"
-                                   value="{{ valores.get('fecha_ingreso', '') }}">
+                                   value="{{ valores.get('fecha_ingreso', e.fecha_ingreso.strftime('%Y-%m-%d') if e else '') }}">
                             <div class="form-text">Dejar vacío para usar fecha actual.</div>
                         </div>
 
@@ -43,46 +50,47 @@
                         <div class="col-md-4">
                             <label for="alm" class="form-label">ALMACÉN</label>
                             <input type="text" class="form-control" id="alm" name="alm"
-                                   value="{{ valores.get('alm', 'ALM-01') }}" maxlength="50">
+                                   value="{{ valores.get('alm', e.alm if e else 'ALM-01') }}" maxlength="50">
                         </div>
 
                         <!-- Zona y Ubicación -->
                         <div class="col-md-6">
                             <label for="zona" class="form-label">ZONA</label>
                             <input type="text" class="form-control" id="zona" name="zona"
-                                   value="{{ valores.get('zona', '') }}" maxlength="50" placeholder="Ej: ZONA-A">
+                                   value="{{ valores.get('zona', e.zona if e else '') }}" maxlength="50" placeholder="Ej: ZONA-A">
                         </div>
                         <div class="col-md-6">
                             <label for="ubicacion" class="form-label">UBICACIÓN</label>
                             <input type="text" class="form-control" id="ubicacion" name="ubicacion"
-                                   value="{{ valores.get('ubicacion', '') }}" maxlength="100" placeholder="Ej: EST-01">
+                                   value="{{ valores.get('ubicacion', e.ubicacion if e else '') }}" maxlength="100" placeholder="Ej: EST-01">
                         </div>
 
                         <!-- OC y Guía -->
                         <div class="col-md-6">
                             <label for="oc" class="form-label">ORDEN DE COMPRA (OC)</label>
                             <input type="text" class="form-control" id="oc" name="oc"
-                                   value="{{ valores.get('oc', '') }}" maxlength="50">
+                                   value="{{ valores.get('oc', e.oc if e else '') }}" maxlength="50">
                         </div>
                         <div class="col-md-6">
                             <label for="guia_remision" class="form-label">GUÍA DE REMISIÓN</label>
                             <input type="text" class="form-control" id="guia_remision" name="guia_remision"
-                                   value="{{ valores.get('guia_remision', '') }}" maxlength="50">
+                                   value="{{ valores.get('guia_remision', e.guia_remision if e else '') }}" maxlength="50">
                         </div>
 
                         <!-- Familia -->
                         <div class="col-md-6">
                             <label for="familia" class="form-label">FAMILIA</label>
                             <input type="text" class="form-control" id="familia" name="familia"
-                                   value="{{ valores.get('familia', '') }}" maxlength="100">
+                                   value="{{ valores.get('familia', e.familia if e else '') }}" maxlength="100">
                             <div class="form-text">Se usará la familia del producto si se deja vacío.</div>
                         </div>
                     </div>
 
                     <div class="d-flex justify-content-end gap-2 mt-4">
-                        <button type="reset" class="btn btn-secondary">Limpiar</button>
+                        <a href="{{ url_for('routes.historial') }}" class="btn btn-secondary">Cancelar</a>
                         <button type="submit" class="btn btn-success">
-                            <i class="bi bi-check-lg me-1"></i>Registrar Entrada
+                            <i class="bi bi-check-lg me-1"></i>
+                            {% if entrada %}Guardar Cambios{% else %}Registrar Entrada{% endif %}
                         </button>
                     </div>
                 </form>
@@ -94,4 +102,12 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/producto_search.js') }}"></script>
+<script>
+(function() {
+    // Disable product search in edit mode
+    {% if entrada %}
+    document.getElementById('productoSearch')?.setAttribute('readonly', true);
+    {% endif %}
+})();
+</script>
 {% endblock %}

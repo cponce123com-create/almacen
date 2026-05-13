@@ -1472,6 +1472,87 @@ def entradas():
     return render_template("entrada_form.html", productos=productos_list)
 
 
+@routes_bp.route("/entradas/editar/<int:entrada_id>", methods=["GET", "POST"])
+@login_required
+def entrada_editar(entrada_id):
+    """Editar una entrada existente. Ajusta el stock del producto."""
+    entrada = db.session.get(Entrada, entrada_id)
+    if not entrada:
+        flash("Entrada no encontrada.", "danger")
+        return redirect(url_for("routes.historial"))
+    producto = entrada.producto
+    productos_list = Producto.query.order_by(Producto.descripcion.asc()).all()
+
+    if request.method == "POST":
+        cantidad_str = request.form.get("cantidad", "0").strip()
+        zona = request.form.get("zona", "").strip()
+        ubicacion = request.form.get("ubicacion", "").strip()
+        alm = request.form.get("alm", "").strip()
+        oc = request.form.get("oc", "").strip()
+        guia_remision = request.form.get("guia_remision", "").strip()
+        familia = request.form.get("familia", "").strip()
+        fecha_str = request.form.get("fecha_ingreso", "").strip()
+
+        errores = []
+        try:
+            nueva_cantidad = float(cantidad_str) if cantidad_str else 0.0
+        except ValueError:
+            nueva_cantidad = 0.0
+            errores.append("La cantidad debe ser un número válido.")
+        if nueva_cantidad <= 0:
+            errores.append("La cantidad debe ser mayor a 0.")
+
+        fecha_ingreso = entrada.fecha_ingreso
+        if fecha_str:
+            try:
+                fecha_ingreso = datetime.strptime(fecha_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            except ValueError:
+                errores.append("Formato de fecha inválido (use YYYY-MM-DD).")
+
+        if errores:
+            for e in errores:
+                flash(e, "danger")
+            return render_template("entrada_form.html", entrada=entrada, productos=productos_list, valores=request.form)
+
+        # Ajustar stock: revertir cantidad anterior y aplicar nueva
+        diferencia = nueva_cantidad - entrada.cantidad
+        producto.stock_actual += diferencia
+
+        entrada.cantidad = nueva_cantidad
+        entrada.zona = zona
+        entrada.ubicacion = ubicacion
+        entrada.alm = alm or entrada.alm
+        entrada.oc = oc
+        entrada.guia_remision = guia_remision
+        entrada.familia = familia or entrada.familia
+        entrada.fecha_ingreso = fecha_ingreso
+        entrada.um = producto.um
+
+        db.session.commit()
+        flash(f"Entrada actualizada. Stock de {producto.descripcion}: {producto.stock_actual:.2f} {producto.um}", "success")
+        return redirect(url_for("routes.historial"))
+
+    return render_template("entrada_form.html", entrada=entrada, productos=productos_list)
+
+
+@routes_bp.route("/entradas/eliminar/<int:entrada_id>", methods=["POST"])
+@login_required
+def entrada_eliminar(entrada_id):
+    """Eliminar una entrada. Revierte el stock del producto."""
+    entrada = db.session.get(Entrada, entrada_id)
+    if not entrada:
+        flash("Entrada no encontrada.", "danger")
+        return redirect(url_for("routes.historial"))
+
+    producto = entrada.producto
+    producto.stock_actual -= entrada.cantidad
+    desc = producto.descripcion
+    db.session.delete(entrada)
+    db.session.commit()
+    flash(f"Entrada eliminada. Stock de {desc}: {producto.stock_actual:.2f} {producto.um}", "success")
+    return redirect(url_for("routes.historial"))
+
+
 # ---------------------------------------------------------------------------
 # Registrar Salida
 # ---------------------------------------------------------------------------
@@ -1542,6 +1623,92 @@ def salidas():
         return redirect(url_for("routes.salidas"))
 
     return render_template("salida_form.html", productos=productos_list)
+
+
+@routes_bp.route("/salidas/editar/<int:salida_id>", methods=["GET", "POST"])
+@login_required
+def salida_editar(salida_id):
+    """Editar una salida existente. Ajusta el stock del producto."""
+    salida = db.session.get(Salida, salida_id)
+    if not salida:
+        flash("Salida no encontrada.", "danger")
+        return redirect(url_for("routes.historial"))
+    producto = salida.producto
+    productos_list = Producto.query.order_by(Producto.descripcion.asc()).all()
+
+    if request.method == "POST":
+        cantidad_str = request.form.get("cantidad", "0").strip()
+        nro_vale = request.form.get("nro_vale", "").strip()
+        oi = request.form.get("oi", "").strip()
+        c_costo = request.form.get("c_costo", "").strip()
+        maquina = request.form.get("maquina", "").strip()
+        categoria = request.form.get("categoria", "").strip()
+        fecha_str = request.form.get("fecha_salida", "").strip()
+
+        errores = []
+        try:
+            nueva_cantidad = float(cantidad_str) if cantidad_str else 0.0
+        except ValueError:
+            nueva_cantidad = 0.0
+            errores.append("La cantidad debe ser un número válido.")
+        if nueva_cantidad <= 0:
+            errores.append("La cantidad debe ser mayor a 0.")
+
+        fecha_salida = salida.fecha_salida
+        if fecha_str:
+            try:
+                fecha_salida = datetime.strptime(fecha_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            except ValueError:
+                errores.append("Formato de fecha inválido (use YYYY-MM-DD).")
+
+        if errores:
+            for e in errores:
+                flash(e, "danger")
+            return render_template("salida_form.html", salida=salida, productos=productos_list, valores=request.form)
+
+        # Calcular diferencia y validar stock disponible
+        diferencia = nueva_cantidad - salida.cantidad
+        if diferencia > 0 and diferencia > producto.stock_actual:
+            flash(
+                f"Stock insuficiente. Disponible: {producto.stock_actual:.2f} {producto.um}, "
+                f"incremento solicitado: {diferencia:.2f}",
+                "danger",
+            )
+            return render_template("salida_form.html", salida=salida, productos=productos_list, valores=request.form)
+
+        producto.stock_actual -= diferencia
+        salida.cantidad = nueva_cantidad
+        salida.nro_vale = nro_vale
+        salida.oi = oi
+        salida.c_costo = c_costo
+        salida.maquina = maquina
+        salida.categoria = categoria
+        salida.fecha_salida = fecha_salida
+        salida.um = producto.um
+
+        db.session.commit()
+        flash(f"Salida actualizada. Stock de {producto.descripcion}: {producto.stock_actual:.2f} {producto.um}", "success")
+        return redirect(url_for("routes.historial"))
+
+    return render_template("salida_form.html", salida=salida, productos=productos_list)
+
+
+@routes_bp.route("/salidas/eliminar/<int:salida_id>", methods=["POST"])
+@login_required
+def salida_eliminar(salida_id):
+    """Eliminar una salida. Revierte el stock del producto."""
+    salida = db.session.get(Salida, salida_id)
+    if not salida:
+        flash("Salida no encontrada.", "danger")
+        return redirect(url_for("routes.historial"))
+
+    producto = salida.producto
+    producto.stock_actual += salida.cantidad
+    desc = producto.descripcion
+    db.session.delete(salida)
+    db.session.commit()
+    flash(f"Salida eliminada. Stock de {desc}: {producto.stock_actual:.2f} {producto.um}", "success")
+    return redirect(url_for("routes.historial"))
 
 
 # ---------------------------------------------------------------------------

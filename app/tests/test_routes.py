@@ -307,6 +307,157 @@ class TestMovimientosManuales:
         assert resp.status_code == 200
         assert b"insuficiente" in resp.data
 
+    def test_entrada_editar_get(self, auth_client, sample_productos, app):
+        with app.app_context():
+            p = Producto.query.filter_by(codigo="P001").first()
+            e = Entrada(producto_id=p.id, cantidad=20)
+            db.session.add(e)
+            db.session.commit()
+            eid = e.id
+        resp = auth_client.get(f"/entradas/editar/{eid}")
+        assert resp.status_code == 200
+        assert b"Editar Entrada" in resp.data
+
+    def test_entrada_editar_post(self, auth_client, sample_productos, app):
+        with app.app_context():
+            p = Producto.query.filter_by(codigo="P001").first()
+            e = Entrada(producto_id=p.id, cantidad=10)
+            db.session.add(e)
+            db.session.commit()
+            eid = e.id
+            stock_anterior = p.stock_actual
+        resp = auth_client.post(f"/entradas/editar/{eid}", data={
+            "cantidad": "25",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"actualizada" in resp.data or b"Entrada" in resp.data
+        with app.app_context():
+            p = Producto.query.filter_by(codigo="P001").first()
+            # stock debe haber aumentado en 15 (25-10)
+            assert p.stock_actual == stock_anterior + 15
+
+    def test_entrada_eliminar(self, auth_client, sample_productos, app):
+        with app.app_context():
+            p = Producto.query.filter_by(codigo="P001").first()
+            stock_antes = p.stock_actual
+        # Crear entrada via route (ajusta stock)
+        resp = auth_client.post("/entradas", data={
+            "producto_id": "1", "cantidad": "15",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            p = Producto.query.filter_by(codigo="P001").first()
+            assert p.stock_actual == stock_antes + 15
+            e = Entrada.query.filter_by(producto_id=p.id).first()
+            eid = e.id
+        # Eliminar la entrada
+        resp = auth_client.post(f"/entradas/eliminar/{eid}", follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            p = Producto.query.filter_by(codigo="P001").first()
+            assert p.stock_actual == stock_antes
+
+    def test_entrada_editar_sin_cambios(self, auth_client, sample_productos, app):
+        """Editar entrada sin cambiar cantidad no altera stock."""
+        with app.app_context():
+            p = Producto.query.filter_by(codigo="P001").first()
+            stock_antes = p.stock_actual
+        resp = auth_client.post("/entradas", data={
+            "producto_id": "1", "cantidad": "10",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            e = Entrada.query.filter_by(producto_id=1).first()
+            assert e is not None
+            eid = e.id
+        resp = auth_client.post(f"/entradas/editar/{eid}", data={
+            "cantidad": "10",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            p = Producto.query.filter_by(codigo="P001").first()
+            assert p.stock_actual == stock_antes + 10
+
+    def test_entrada_eliminar(self, auth_client, sample_productos, app):
+        with app.app_context():
+            p = Producto.query.filter_by(codigo="P001").first()
+            stock_antes = p.stock_actual
+        resp = auth_client.post("/entradas", data={
+            "producto_id": "1", "cantidad": "15",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            p = Producto.query.filter_by(codigo="P001").first()
+            assert p.stock_actual == stock_antes + 15
+            e = Entrada.query.filter_by(producto_id=1).first()
+            eid = e.id
+        resp = auth_client.post(f"/entradas/eliminar/{eid}", follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            p = Producto.query.filter_by(codigo="P001").first()
+            assert p.stock_actual == stock_antes
+
+    def test_salida_editar_get(self, auth_client, sample_productos, app):
+        with app.app_context():
+            p = Producto.query.filter_by(codigo="P002").first()
+            pid = p.id
+        resp = auth_client.post("/salidas", data={
+            "producto_id": str(pid), "cantidad": "10",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            s = Salida.query.filter_by(producto_id=pid).first()
+            assert s is not None, "Salida no fue creada"
+            sid = s.id
+        resp = auth_client.get(f"/salidas/editar/{sid}")
+        assert resp.status_code == 200
+        assert b"Editar Salida" in resp.data
+
+    def test_salida_editar_post_decremento(self, auth_client, sample_productos, app):
+        """Reducir cantidad de salida (devuelve stock)."""
+        with app.app_context():
+            p = Producto.query.filter_by(codigo="P002").first()
+            stock_antes = p.stock_actual
+            pid = p.id
+        resp = auth_client.post("/salidas", data={
+            "producto_id": str(pid), "cantidad": "10",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            p = Producto.query.filter_by(codigo="P002").first()
+            assert p.stock_actual == stock_antes - 10, f"Stock {p.stock_actual} != {stock_antes - 10}"
+            s = Salida.query.filter_by(producto_id=pid).first()
+            assert s is not None
+            sid = s.id
+        resp = auth_client.post(f"/salidas/editar/{sid}", data={
+            "cantidad": "5",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            p = Producto.query.filter_by(codigo="P002").first()
+            assert p.stock_actual == stock_antes - 5
+
+    def test_salida_eliminar(self, auth_client, sample_productos, app):
+        with app.app_context():
+            p = Producto.query.filter_by(codigo="P002").first()
+            stock_antes = p.stock_actual
+            pid = p.id
+        resp = auth_client.post("/salidas", data={
+            "producto_id": str(pid), "cantidad": "5",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            p = Producto.query.filter_by(codigo="P002").first()
+            assert p.stock_actual == stock_antes - 5
+            s = Salida.query.filter_by(producto_id=pid).first()
+            assert s is not None
+            sid = s.id
+        resp = auth_client.post(f"/salidas/eliminar/{sid}", follow_redirects=True)
+        assert resp.status_code == 200
+        with app.app_context():
+            p = Producto.query.filter_by(codigo="P002").first()
+            assert p.stock_actual == stock_antes
+
 
 # ===========================================================================
 # Tests de Existencias e Historial
