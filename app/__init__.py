@@ -87,6 +87,36 @@ def create_app(testing=False):
         from app.models import User, Producto, Entrada, Salida, AuditLog, Familia, Almacen, OrdenCompra
         db.create_all()
 
+        # ------------------------------------------------------------------
+        # Migración segura: agregar columnas faltantes en tablas existentes
+        # (db.create_all() no altera tablas ya creadas, solo crea nuevas)
+        # ------------------------------------------------------------------
+        from sqlalchemy import inspect as sa_inspect
+        try:
+            inspector = sa_inspect(db.engine)
+            cols = [c["name"] for c in inspector.get_columns("productos")]
+            migraciones = [
+                ("familia_id", "INTEGER REFERENCES familias(id)"),
+                ("almacen_id", "INTEGER REFERENCES almacen(id)"),
+            ]
+            for col_name, col_type in migraciones:
+                if col_name not in cols:
+                    app.logger.info(
+                        "Migración: agregando columna %s a productos...", col_name
+                    )
+                    db.session.execute(
+                        db.text(
+                            f"ALTER TABLE productos ADD COLUMN {col_name} {col_type}"
+                        )
+                    )
+                    db.session.commit()
+                    app.logger.info(
+                        "Migración: columna %s agregada correctamente.", col_name
+                    )
+        except Exception as exc:
+            app.logger.warning("Migración de columnas no aplicable: %s", exc)
+            db.session.rollback()
+
         # Crear almacén por defecto si no existe ninguno
         if Almacen.query.count() == 0:
             default = Almacen(codigo="ALM-01", nombre="Almacén Principal", direccion="")
