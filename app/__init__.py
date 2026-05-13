@@ -84,8 +84,27 @@ def create_app(testing=False):
     # Crear tablas y configurar SQLite WAL mode
     # ------------------------------------------------------------------
     with app.app_context():
-        from app.models import User, Producto, Entrada, Salida, AuditLog
+        from app.models import User, Producto, Entrada, Salida, AuditLog, Familia
         db.create_all()
+
+        # Migrar familias existentes desde el campo texto al modelo Familia
+        familias_existentes = {f.nombre for f in Familia.query.all()}
+        familias_en_uso = set()
+        for p in Producto.query.filter(Producto.familia.isnot(None), Producto.familia != "").all():
+            if p.familia and p.familia not in familias_existentes:
+                familias_en_uso.add(p.familia)
+        for nombre in familias_en_uso:
+            f = Familia(nombre=nombre)
+            db.session.add(f)
+            familias_existentes.add(nombre)
+        if familias_en_uso:
+            db.session.commit()
+            # Vincular productos a las nuevas familias
+            for p in Producto.query.filter(Producto.familia.isnot(None), Producto.familia != "", Producto.familia_id.is_(None)).all():
+                f = Familia.query.filter_by(nombre=p.familia).first()
+                if f:
+                    p.familia_id = f.id
+            db.session.commit()
 
         # Activar PRAGMA optimizados para SQLite (WAL mode = mejor concurrencia)
         if "sqlite" in app.config["SQLALCHEMY_DATABASE_URI"]:

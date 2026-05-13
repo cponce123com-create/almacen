@@ -23,7 +23,7 @@
                 <select class="form-select form-select-sm" id="familia" name="familia">
                     <option value="">Todas</option>
                     {% for f in familias %}
-                    <option value="{{ f }}" {{ 'selected' if familia == f }}>{{ f }}</option>
+                    <option value="{{ f.nombre }}" {{ 'selected' if familia == f.nombre }}>{{ f.nombre }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -87,7 +87,7 @@
                 <td class="text-center">
                     {{ "%.0f"|format(p.stock_minimo) if p.stock_minimo > 0 else '—' }}
                 </td>
-                <td>{{ p.familia or '—' }}</td>
+                <td>{{ p.familia_nombre }}</td>
                 <td>
                     {% if p.stock_bajo and p.stock_minimo > 0 %}
                     <span class="badge bg-danger">STOCK BAJO</span>

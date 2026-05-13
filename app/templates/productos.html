@@ -91,7 +91,7 @@
                 <td class="small">{{ p.cod_catalogo or '—' }}</td>
                 <td>{{ p.descripcion }}</td>
                 <td>{{ p.um }}</td>
-                <td>{{ p.familia or '—' }}</td>
+                <td>{{ p.familia_nombre }}</td>
                 <td class="text-center">
                     {% if p.stock_actual <= p.stock_minimo and p.stock_minimo > 0 %}
                     <span class="badge bg-danger">{{ "%.2f"|format(p.stock_actual) }}</span>
@@ -206,7 +206,7 @@
                             '<td><span class="badge bg-secondary">' + escapeHtml(p.codigo) + '</span></td>' +
                             '<td>' + escapeHtml(p.descripcion || '') + '</td>' +
                             '<td>' + escapeHtml(p.um || '') + '</td>' +
-                            '<td>' + escapeHtml(p.familia || '—') + '</td>' +
+                            '<td>' + escapeHtml(p.familia_nombre || '—') + '</td>' +
                             '<td class="text-center">' + stock + '</td>' +
                             '<td class="text-end">' + acciones + '</td>' +
                             '</tr>';

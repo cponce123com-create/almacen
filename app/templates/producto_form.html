@@ -49,10 +49,16 @@
                                    required maxlength="300" placeholder="Descripción del producto">
                         </div>
                         <div class="col-md-6">
-                            <label for="familia" class="form-label">FAMILIA</label>
-                            <input type="text" class="form-control" id="familia" name="familia"
-                                   value="{{ valores.get('familia', p.familia if p else '') }}"
-                                   maxlength="100" placeholder="Ej: FERRETERIA">
+                            <label for="familia_id" class="form-label">FAMILIA</label>
+                            <select class="form-select" id="familia_id" name="familia_id">
+                                <option value="">— Sin familia —</option>
+                                {% for f in familias %}
+                                <option value="{{ f.id }}" {% if producto and producto.familia_id == f.id %}selected{% endif %}
+                                        style="border-left: 4px solid {{ f.color }}">{{ f.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                            <input type="hidden" name="familia"
+                                   value="{{ valores.get('familia', p.familia if p else '') }}">
                         </div>
                         <div class="col-md-6">
                             <label for="stock_minimo" class="form-label">STOCK MÍNIMO</label>

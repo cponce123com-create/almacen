@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Familias - Almacén{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h4 class="mb-0"><i class="bi bi-tags me-2"></i>Familias</h4>
+    <a href="{{ url_for('routes.familia_nuevo') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Nueva Familia
+    </a>
+</div>
+
+{% if familias %}
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>Nombre</th>
+                <th>Color</th>
+                <th class="text-center">Productos</th>
+                <th class="text-end">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for f in familias %}
+            <tr>
+                <td class="fw-semibold">{{ f.nombre }}</td>
+                <td>
+                    <span class="d-inline-block rounded-1 me-2" style="width:20px;height:20px;background-color:{{ f.color }};vertical-align:middle;"></span>
+                    <code>{{ f.color }}</code>
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-secondary">{{ f.productos.count() }}</span>
+                </td>
+                <td class="text-end">
+                    <a href="{{ url_for('routes.familia_editar', familia_id=f.id) }}" class="btn btn-sm btn-outline-primary" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </a>
+                    <form method="POST" action="{{ url_for('routes.familia_eliminar', familia_id=f.id) }}"
+                          style="display:inline;"
+                          onsubmit="return confirm('¿Eliminar la familia «{{ f.nombre }}»?
+
+Solo se puede eliminar si no tiene productos asociados.');">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="text-center py-5 text-muted">
+    <i class="bi bi-tags display-1"></i>
+    <h5 class="mt-3">No hay familias registradas</h5>
+    <p>Las familias permiten agrupar productos por categorías.</p>
+    <a href="{{ url_for('routes.familia_nuevo') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Crear primera familia
+    </a>
+</div>
+{% endif %}
+{% endblock %}

@@ -27,6 +27,18 @@ class User(UserMixin, db.Model):
         return f"<User {self.username}>"
 
 
+class Familia(db.Model):
+    __tablename__ = "familias"
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    color = db.Column(db.String(7), nullable=False, default="#6c757d")
+
+    productos = db.relationship("Producto", backref="familia_rel", lazy="dynamic")
+
+    def __repr__(self):
+        return f"<Familia {self.nombre}>"
+
+
 class Producto(db.Model):
     __tablename__ = "productos"
     id = db.Column(db.Integer, primary_key=True)
@@ -35,6 +47,7 @@ class Producto(db.Model):
     descripcion = db.Column(db.String(300), nullable=False)
     um = db.Column(db.String(20), nullable=False, default="UND")
     familia = db.Column(db.String(100), nullable=True, default="")
+    familia_id = db.Column(db.Integer, db.ForeignKey("familias.id"), nullable=True, index=True)
     stock_actual = db.Column(db.Float, nullable=False, default=0.0)
     stock_minimo = db.Column(db.Float, nullable=False, default=0.0)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
@@ -48,6 +61,13 @@ class Producto(db.Model):
     @property
     def stock_bajo(self):
         return self.stock_actual <= self.stock_minimo
+
+    @property
+    def familia_nombre(self):
+        """Retorna el nombre de la familia (desde FK o campo texto)."""
+        if self.familia_rel:
+            return self.familia_rel.nombre
+        return self.familia or "—"
 
 
 class Entrada(db.Model):

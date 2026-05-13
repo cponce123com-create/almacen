@@ -8,7 +8,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from app import db
-from app.models import User, Producto, Entrada, Salida, AuditLog, audit_log
+from app.models import User, Producto, Entrada, Salida, AuditLog, audit_log, Familia
 
 routes_bp = Blueprint("routes", __name__)
 
@@ -1355,12 +1355,15 @@ def producto_exportar():
     )
 
 def _producto_form(producto=None):
+    familias = Familia.query.order_by(Familia.nombre).all()
+
     if request.method == "POST":
         codigo = request.form.get("codigo", "").strip().upper()
         cod_catalogo = request.form.get("cod_catalogo", "").strip()
         descripcion = request.form.get("descripcion", "").strip()
         um = request.form.get("um", "").strip().upper() or "UND"
         familia = request.form.get("familia", "").strip()
+        familia_id = request.form.get("familia_id", "").strip()
         stock_minimo_str = request.form.get("stock_minimo", "0").strip()
         try:
             stock_minimo = float(stock_minimo_str) if stock_minimo_str else 0.0
@@ -1381,7 +1384,7 @@ def _producto_form(producto=None):
         if errores:
             for e in errores:
                 flash(e, "danger")
-            return render_template("producto_form.html", producto=producto, valores=request.form)
+            return render_template("producto_form.html", producto=producto, valores=request.form, familias=familias)
 
         is_edit = producto is not None
         if is_edit:
@@ -1402,6 +1405,19 @@ def _producto_form(producto=None):
         producto.familia = familia
         producto.stock_minimo = stock_minimo
 
+        # Set familia_id if selected
+        if familia_id:
+            try:
+                fid = int(familia_id)
+                fam = Familia.query.get(fid)
+                if fam:
+                    producto.familia_id = fid
+                    producto.familia = fam.nombre
+            except (ValueError, TypeError):
+                pass
+        else:
+            producto.familia_id = None
+
         if is_edit:
             audit_log("productos", producto.id, "codigo", old_codigo, codigo, current_user.username)
             audit_log("productos", producto.id, "descripcion", old_descripcion, descripcion, current_user.username)
@@ -1413,7 +1429,7 @@ def _producto_form(producto=None):
         flash("Producto guardado correctamente.", "success")
         return redirect(url_for("routes.productos"))
 
-    return render_template("producto_form.html", producto=producto)
+    return render_template("producto_form.html", producto=producto, familias=familias)
 
 
 # ---------------------------------------------------------------------------
@@ -1794,9 +1810,7 @@ def existencias():
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
     # Obtener lista de familias para el filtro
-    familias = sorted(set(
-        f[0] for f in db.session.query(Producto.familia).filter(Producto.familia != "").distinct().all()
-    ))
+    familias = Familia.query.order_by(Familia.nombre).all()
 
     return render_template(
         "existencias.html",
@@ -2166,6 +2180,122 @@ def historial_exportar():
     return send_file(output,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True, download_name=f"historial_{date.today().strftime('%Y%m%d')}.xlsx")
+
+
+# ===========================================================================
+# CRUD Familias (solo administrador)
+# ===========================================================================
+
+@routes_bp.route("/familias")
+@login_required
+def familias():
+    """Listar todas las familias."""
+    check = _admin_required()
+    if check:
+        return check
+    familias = Familia.query.order_by(Familia.nombre).all()
+    return render_template("familias.html", familias=familias)
+
+
+@routes_bp.route("/familias/nuevo", methods=["GET", "POST"])
+@login_required
+def familia_nuevo():
+    """Crear nueva familia."""
+    check = _admin_required()
+    if check:
+        return check
+
+    if request.method == "POST":
+        nombre = request.form.get("nombre", "").strip().upper()
+        color = request.form.get("color", "#6c757d").strip()
+
+        errores = []
+        if not nombre:
+            errores.append("El nombre de la familia es obligatorio.")
+        if Familia.query.filter_by(nombre=nombre).first():
+            errores.append(f"La familia '{nombre}' ya existe.")
+
+        if errores:
+            for e in errores:
+                flash(e, "danger")
+            return render_template("familia_form.html", valores=request.form)
+
+        familia = Familia(nombre=nombre, color=color)
+        db.session.add(familia)
+        db.session.commit()
+        flash(f"Familia '{nombre}' creada correctamente.", "success")
+        return redirect(url_for("routes.familias"))
+
+    return render_template("familia_form.html")
+
+
+@routes_bp.route("/familias/editar/<int:familia_id>", methods=["GET", "POST"])
+@login_required
+def familia_editar(familia_id):
+    """Editar familia existente."""
+    check = _admin_required()
+    if check:
+        return check
+
+    familia = db.session.get(Familia, familia_id)
+    if not familia:
+        flash("Familia no encontrada.", "danger")
+        return redirect(url_for("routes.familias"))
+
+    if request.method == "POST":
+        nombre = request.form.get("nombre", "").strip().upper()
+        color = request.form.get("color", "#6c757d").strip()
+
+        errores = []
+        if not nombre:
+            errores.append("El nombre de la familia es obligatorio.")
+
+        # Validar nombre único (excluyendo la familia actual)
+        existente = Familia.query.filter(Familia.nombre == nombre, Familia.id != familia_id).first()
+        if existente:
+            errores.append(f"La familia '{nombre}' ya existe.")
+
+        if errores:
+            for e in errores:
+                flash(e, "danger")
+            return render_template("familia_form.html", familia=familia, valores=request.form)
+
+        old_nombre = familia.nombre
+        old_color = familia.color
+        familia.nombre = nombre
+        familia.color = color
+
+        audit_log("familias", familia.id, "nombre", old_nombre, nombre, current_user.username)
+        audit_log("familias", familia.id, "color", old_color, color, current_user.username)
+
+        db.session.commit()
+        flash(f"Familia '{nombre}' actualizada correctamente.", "success")
+        return redirect(url_for("routes.familias"))
+
+    return render_template("familia_form.html", familia=familia)
+
+
+@routes_bp.route("/familias/eliminar/<int:familia_id>", methods=["POST"])
+@login_required
+def familia_eliminar(familia_id):
+    """Eliminar familia solo si no tiene productos asociados."""
+    check = _admin_required()
+    if check:
+        return check
+
+    familia = db.session.get(Familia, familia_id)
+    if not familia:
+        flash("Familia no encontrada.", "danger")
+        return redirect(url_for("routes.familias"))
+
+    if familia.productos.count() > 0:
+        flash(f"No se puede eliminar la familia '{familia.nombre}' porque tiene {familia.productos.count()} producto(s) asociado(s).", "danger")
+        return redirect(url_for("routes.familias"))
+
+    db.session.delete(familia)
+    db.session.commit()
+    flash(f"Familia '{familia.nombre}' eliminada correctamente.", "success")
+    return redirect(url_for("routes.familias"))
 
 
 # ===========================================================================
