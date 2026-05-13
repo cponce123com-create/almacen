@@ -5,6 +5,17 @@ from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
+class Almacen(db.Model):
+    __tablename__ = "almacenes"
+    id = db.Column(db.Integer, primary_key=True)
+    codigo = db.Column(db.String(20), unique=True, nullable=False)
+    nombre = db.Column(db.String(100), nullable=False)
+    direccion = db.Column(db.String(200), default="")
+
+    def __repr__(self):
+        return f"<Almacen {self.codigo}>"
+
+
 class User(UserMixin, db.Model):
     __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
@@ -48,12 +59,14 @@ class Producto(db.Model):
     um = db.Column(db.String(20), nullable=False, default="UND")
     familia = db.Column(db.String(100), nullable=True, default="")
     familia_id = db.Column(db.Integer, db.ForeignKey("familias.id"), nullable=True, index=True)
+    almacen_id = db.Column(db.Integer, db.ForeignKey("almacenes.id"), nullable=True)
     stock_actual = db.Column(db.Float, nullable=False, default=0.0)
     stock_minimo = db.Column(db.Float, nullable=False, default=0.0)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     entradas = db.relationship("Entrada", backref="producto", lazy="dynamic")
     salidas = db.relationship("Salida", backref="producto", lazy="dynamic")
+    almacen = db.relationship("Almacen", backref="productos")
 
     def __repr__(self):
         return f"<Producto {self.codigo} - {self.descripcion}>"

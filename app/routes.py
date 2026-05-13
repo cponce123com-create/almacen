@@ -8,7 +8,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from app import db
-from app.models import User, Producto, Entrada, Salida, AuditLog, audit_log, Familia
+from app.models import User, Producto, Entrada, Salida, AuditLog, audit_log, Familia, Almacen
 
 routes_bp = Blueprint("routes", __name__)
 
@@ -2296,6 +2296,132 @@ def familia_eliminar(familia_id):
     db.session.commit()
     flash(f"Familia '{familia.nombre}' eliminada correctamente.", "success")
     return redirect(url_for("routes.familias"))
+
+
+# ===========================================================================
+# CRUD Almacenes (solo administrador)
+# ===========================================================================
+
+@routes_bp.route("/almacenes")
+@login_required
+def almacenes():
+    """Listar todos los almacenes."""
+    check = _admin_required()
+    if check:
+        return check
+    almacenes = Almacen.query.order_by(Almacen.codigo).all()
+    return render_template("almacenes.html", almacenes=almacenes)
+
+
+@routes_bp.route("/almacenes/nuevo", methods=["GET", "POST"])
+@login_required
+def almacen_nuevo():
+    """Crear nuevo almacén."""
+    check = _admin_required()
+    if check:
+        return check
+
+    if request.method == "POST":
+        codigo = request.form.get("codigo", "").strip().upper()
+        nombre = request.form.get("nombre", "").strip()
+        direccion = request.form.get("direccion", "").strip()
+
+        errores = []
+        if not codigo:
+            errores.append("El código del almacén es obligatorio.")
+        if not nombre:
+            errores.append("El nombre del almacén es obligatorio.")
+        if Almacen.query.filter_by(codigo=codigo).first():
+            errores.append(f"El código '{codigo}' ya está registrado.")
+
+        if errores:
+            for e in errores:
+                flash(e, "danger")
+            return render_template("almacen_form.html", valores=request.form)
+
+        almacen = Almacen(codigo=codigo, nombre=nombre, direccion=direccion)
+        db.session.add(almacen)
+        db.session.commit()
+        flash(f"Almacén '{nombre}' creado correctamente.", "success")
+        return redirect(url_for("routes.almacenes"))
+
+    return render_template("almacen_form.html")
+
+
+@routes_bp.route("/almacenes/editar/<int:almacen_id>", methods=["GET", "POST"])
+@login_required
+def almacen_editar(almacen_id):
+    """Editar almacén existente."""
+    check = _admin_required()
+    if check:
+        return check
+
+    almacen = db.session.get(Almacen, almacen_id)
+    if not almacen:
+        flash("Almacén no encontrado.", "danger")
+        return redirect(url_for("routes.almacenes"))
+
+    if request.method == "POST":
+        codigo = request.form.get("codigo", "").strip().upper()
+        nombre = request.form.get("nombre", "").strip()
+        direccion = request.form.get("direccion", "").strip()
+
+        errores = []
+        if not codigo:
+            errores.append("El código del almacén es obligatorio.")
+        if not nombre:
+            errores.append("El nombre del almacén es obligatorio.")
+
+        # Validar código único (excluyendo el almacén actual)
+        existente = Almacen.query.filter(Almacen.codigo == codigo, Almacen.id != almacen_id).first()
+        if existente:
+            errores.append(f"El código '{codigo}' ya está registrado.")
+
+        if errores:
+            for e in errores:
+                flash(e, "danger")
+            return render_template("almacen_form.html", almacen=almacen, valores=request.form)
+
+        old_codigo = almacen.codigo
+        old_nombre = almacen.nombre
+        old_direccion = almacen.direccion
+
+        almacen.codigo = codigo
+        almacen.nombre = nombre
+        almacen.direccion = direccion
+
+        audit_log("almacenes", almacen.id, "codigo", old_codigo, codigo, current_user.username)
+        audit_log("almacenes", almacen.id, "nombre", old_nombre, nombre, current_user.username)
+        audit_log("almacenes", almacen.id, "direccion", old_direccion, direccion, current_user.username)
+
+        db.session.commit()
+        flash(f"Almacén '{nombre}' actualizado correctamente.", "success")
+        return redirect(url_for("routes.almacenes"))
+
+    return render_template("almacen_form.html", almacen=almacen)
+
+
+@routes_bp.route("/almacenes/eliminar/<int:almacen_id>", methods=["POST"])
+@login_required
+def almacen_eliminar(almacen_id):
+    """Eliminar almacén solo si no tiene productos asociados."""
+    check = _admin_required()
+    if check:
+        return check
+
+    almacen = db.session.get(Almacen, almacen_id)
+    if not almacen:
+        flash("Almacén no encontrado.", "danger")
+        return redirect(url_for("routes.almacenes"))
+
+    if almacen.productos.count() > 0:
+        flash(f"No se puede eliminar el almacén '{almacen.nombre}' porque tiene {almacen.productos.count()} producto(s) asociado(s).", "danger")
+        return redirect(url_for("routes.almacenes"))
+
+    db.session.delete(almacen)
+    db.session.commit()
+    flash(f"Almacén '{almacen.nombre}' eliminado correctamente.", "success")
+    return redirect(url_for("routes.almacenes"))
 
 
 # ===========================================================================

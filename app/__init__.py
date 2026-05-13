@@ -84,8 +84,14 @@ def create_app(testing=False):
     # Crear tablas y configurar SQLite WAL mode
     # ------------------------------------------------------------------
     with app.app_context():
-        from app.models import User, Producto, Entrada, Salida, AuditLog, Familia
+        from app.models import User, Producto, Entrada, Salida, AuditLog, Familia, Almacen
         db.create_all()
+
+        # Crear almacén por defecto si no existe ninguno
+        if Almacen.query.count() == 0:
+            default = Almacen(codigo="ALM-01", nombre="Almacén Principal", direccion="")
+            db.session.add(default)
+            db.session.commit()
 
         # Migrar familias existentes desde el campo texto al modelo Familia
         familias_existentes = {f.nombre for f in Familia.query.all()}
