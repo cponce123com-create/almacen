@@ -28,7 +28,7 @@
                         <td>{{ a.nombre }}</td>
                         <td>{{ a.direccion or "—" }}</td>
                         <td>
-                            <span class="badge bg-info">{{ a.productos.count() }}</span>
+                            <span class="badge bg-info">{{ a.productos|length }}</span>
                         </td>
                         <td class="text-end">
                             <a href="{{ url_for('routes.almacen_editar', almacen_id=a.id) }}" class="btn btn-sm btn-warning">

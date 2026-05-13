@@ -103,33 +103,36 @@ def create_app(testing=False):
             ],
         }
 
-        try:
-            inspector = sa_inspect(db.engine)
-            for table_name, columns in _MIGRACIONES.items():
-                try:
-                    existing = {c["name"] for c in inspector.get_columns(table_name)}
-                except Exception:
-                    app.logger.warning("Migración: tabla %s no existe, se omite.", table_name)
+        inspector = sa_inspect(db.engine)
+        for table_name, columns in _MIGRACIONES.items():
+            try:
+                existing = {c["name"] for c in inspector.get_columns(table_name)}
+            except Exception:
+                app.logger.info("Migración: tabla '%s' no existe, se omite.", table_name)
+                continue
+            for col_name, col_type in columns:
+                if col_name in existing:
                     continue
-                for col_name, col_type in columns:
-                    if col_name not in existing:
-                        app.logger.info(
-                            "Migración: agregando columna %s a %s...",
-                            col_name, table_name,
+                try:
+                    app.logger.info(
+                        "Migración: agregando columna %s a %s...",
+                        col_name, table_name,
+                    )
+                    db.session.execute(
+                        db.text(
+                            f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"
                         )
-                        db.session.execute(
-                            db.text(
-                                f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"
-                            )
-                        )
-                        db.session.commit()
-                        app.logger.info(
-                            "Migración: columna %s agregada a %s.",
-                            col_name, table_name,
-                        )
-        except Exception as exc:
-            app.logger.warning("Migración de columnas no aplicable: %s", exc)
-            db.session.rollback()
+                    )
+                    db.session.commit()
+                    app.logger.info(
+                        "Migración: columna %s agregada a %s.", col_name, table_name,
+                    )
+                except Exception as exc:
+                    app.logger.warning(
+                        "Migración: no se pudo agregar %s a %s: %s",
+                        col_name, table_name, exc,
+                    )
+                    db.session.rollback()
 
         # Crear almacén por defecto si no existe ninguno
         if Almacen.query.count() == 0:
