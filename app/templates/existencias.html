@@ -60,11 +60,12 @@
         <thead class="table-dark">
             <tr>
                 <th>Código</th>
+                <th>Cod. Catálogo</th>
                 <th>Descripción</th>
-                <th>Familia</th>
+                <th>U.M.</th>
                 <th class="text-center">Stock Actual</th>
                 <th class="text-center">Stock Mínimo</th>
-                <th>U.M.</th>
+                <th>Familia</th>
                 <th>Estado</th>
                 <th class="text-end">Acciones</th>
             </tr>
@@ -73,7 +74,9 @@
             {% for p in pagination.items %}
             <tr>
                 <td><span class="badge bg-secondary">{{ p.codigo }}</span></td>
+                <td>{{ p.cod_catalogo or '—' }}</td>
                 <td>{{ p.descripcion }}</td>
+                <td>{{ p.um }}</td>
                 <td class="text-center">
                     {% if p.stock_bajo and p.stock_minimo > 0 %}
                     <span class="badge bg-danger fs-6">{{ "%.2f"|format(p.stock_actual) }}</span>
@@ -84,7 +87,7 @@
                 <td class="text-center">
                     {{ "%.0f"|format(p.stock_minimo) if p.stock_minimo > 0 else '—' }}
                 </td>
-                <td>{{ p.um }}</td>
+                <td>{{ p.familia or '—' }}</td>
                 <td>
                     {% if p.stock_bajo and p.stock_minimo > 0 %}
                     <span class="badge bg-danger">STOCK BAJO</span>
@@ -94,7 +97,6 @@
                     <span class="badge bg-success">OK</span>
                     {% endif %}
                 </td>
-                <td>{{ p.familia or '—' }}</td>
                 <td class="text-end">
                     <a href="{{ url_for('routes.producto_editar', producto_id=p.id) }}" class="btn btn-sm btn-outline-primary" title="Editar">
                         <i class="bi bi-pencil"></i>
