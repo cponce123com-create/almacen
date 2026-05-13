@@ -96,6 +96,65 @@ class TestAuth:
         assert resp.status_code == 302
         assert "/login" in resp.location
 
+    def test_cambiar_contrasena_get(self, auth_client):
+        resp = auth_client.get("/cambiar-contrasena")
+        assert resp.status_code == 200
+        assert b"Cambiar mi contrase" in resp.data
+
+    def test_cambiar_contrasena_post_success(self, auth_client):
+        """El usuario cambia su contraseña correctamente."""
+        resp = auth_client.post("/cambiar-contrasena", data={
+            "current_password": "Hadrones456%",
+            "new_password": "NuevaPass123",
+            "new_password2": "NuevaPass123",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"cambiada correctamente" in resp.data
+
+        # Verificar que puede iniciar sesión con la nueva contraseña
+        auth_client.get("/logout", follow_redirects=True)
+        resp = auth_client.post("/login", data={
+            "username": "cponce123.com@gmail.com",
+            "password": "NuevaPass123",
+        }, follow_redirects=True)
+        assert b"Inicio de sesi" in resp.data
+
+    def test_cambiar_contrasena_wrong_current(self, auth_client):
+        """Error si la contraseña actual es incorrecta."""
+        resp = auth_client.post("/cambiar-contrasena", data={
+            "current_password": "wrongpass",
+            "new_password": "NuevaPass123",
+            "new_password2": "NuevaPass123",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"actual es incorrecta" in resp.data
+
+    def test_cambiar_contrasena_mismatch(self, auth_client):
+        """Error si las nuevas contraseñas no coinciden."""
+        resp = auth_client.post("/cambiar-contrasena", data={
+            "current_password": "Hadrones456%",
+            "new_password": "NuevaPass123",
+            "new_password2": "OtraPass456",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"no coinciden" in resp.data
+
+    def test_cambiar_contrasena_short_password(self, auth_client):
+        """Error si la nueva contraseña es demasiado corta."""
+        resp = auth_client.post("/cambiar-contrasena", data={
+            "current_password": "Hadrones456%",
+            "new_password": "ab",
+            "new_password2": "ab",
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"al menos 4 caracteres" in resp.data
+
+    def test_cambiar_contrasena_requires_login(self, client):
+        """Redirige al login si no está autenticado."""
+        resp = client.get("/cambiar-contrasena", follow_redirects=False)
+        assert resp.status_code == 302
+        assert "/login" in resp.location
+
 
 # ===========================================================================
 # Tests de Dashboard

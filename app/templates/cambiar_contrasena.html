@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Cambiar Contraseña - Almacén{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <a href="{{ url_for('routes.dashboard') }}" class="btn btn-outline-secondary me-3">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <h4 class="mb-0">
+        <i class="bi bi-key me-2"></i>Cambiar mi contraseña
+    </h4>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="current_password" class="form-label">Contraseña actual <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="current_password" name="current_password"
+                               required placeholder="Ingresa tu contraseña actual" autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">Nueva contraseña <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="new_password" name="new_password"
+                               required minlength="4" placeholder="Mínimo 4 caracteres">
+                    </div>
+                    <div class="mb-3">
+                        <label for="new_password2" class="form-label">Confirmar nueva contraseña <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="new_password2" name="new_password2"
+                               required minlength="4" placeholder="Repite la nueva contraseña">
+                    </div>
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('routes.dashboard') }}" class="btn btn-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-lg me-1"></i>Cambiar contraseña
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

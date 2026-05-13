@@ -65,6 +65,39 @@ def logout():
     return redirect(url_for("routes.login"))
 
 
+@routes_bp.route("/cambiar-contrasena", methods=["GET", "POST"])
+@login_required
+def cambiar_contrasena():
+    """Permite al usuario cambiar su propia contraseña."""
+    if request.method == "POST":
+        current_password = request.form.get("current_password", "")
+        new_password = request.form.get("new_password", "")
+        new_password2 = request.form.get("new_password2", "")
+
+        errores = []
+        if not current_password:
+            errores.append("Debes ingresar tu contraseña actual.")
+        elif not current_user.check_password(current_password):
+            errores.append("La contraseña actual es incorrecta.")
+
+        if len(new_password) < 4:
+            errores.append("La nueva contraseña debe tener al menos 4 caracteres.")
+        if new_password != new_password2:
+            errores.append("Las contraseñas nuevas no coinciden.")
+
+        if errores:
+            for e in errores:
+                flash(e, "danger")
+            return render_template("cambiar_contrasena.html")
+
+        current_user.set_password(new_password)
+        db.session.commit()
+        flash("Tu contraseña ha sido cambiada correctamente.", "success")
+        return redirect(url_for("routes.dashboard"))
+
+    return render_template("cambiar_contrasena.html")
+
+
 # ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------

@@ -74,7 +74,6 @@
             <tr>
                 <td><span class="badge bg-secondary">{{ p.codigo }}</span></td>
                 <td>{{ p.descripcion }}</td>
-                <td>{{ p.familia or '—' }}</td>
                 <td class="text-center">
                     {% if p.stock_bajo and p.stock_minimo > 0 %}
                     <span class="badge bg-danger fs-6">{{ "%.2f"|format(p.stock_actual) }}</span>
@@ -95,6 +94,7 @@
                     <span class="badge bg-success">OK</span>
                     {% endif %}
                 </td>
+                <td>{{ p.familia or '—' }}</td>
                 <td class="text-end">
                     <a href="{{ url_for('routes.producto_editar', producto_id=p.id) }}" class="btn btn-sm btn-outline-primary" title="Editar">
                         <i class="bi bi-pencil"></i>
