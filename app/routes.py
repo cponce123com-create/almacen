@@ -40,6 +40,20 @@ def _init_admin_user():
         db.session.commit()
 
 
+def _validar_mime_excel(filepath):
+    """Verifica que el archivo sea un Excel .xlsx válido.
+    
+    Los archivos .xlsx son contenedores ZIP. Verifica el magic header.
+    Retorna True si parece válido, False en caso contrario.
+    """
+    try:
+        with open(filepath, "rb") as f:
+            header = f.read(4)
+        return header == b"PK\x03\x04"  # ZIP header
+    except Exception:
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------------------
@@ -693,7 +707,6 @@ def producto_importar():
       2. POST con confirmar  → ejecuta la importación real.
     """
     # Manejo de peticiones
-    import uuid as _uuid
     import tempfile as _tempfile
 
     if request.method == "POST":
@@ -714,9 +727,28 @@ def producto_importar():
             return redirect(url_for("routes.producto_importar"))
 
         # Guardar el archivo en un temporal para poder releerlo en confirmación
-        tmp_suffix = _uuid.uuid4().hex[:12]
-        tmp_path = os.path.join(_tempfile.gettempdir(), f"almacen_import_{tmp_suffix}.xlsx")
-        file.save(tmp_path)
+        tmp_file = _tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
+        try:
+            file.save(tmp_file.name)
+            tmp_path = tmp_file.name
+        except Exception:
+            tmp_file.close()
+            try:
+                os.unlink(tmp_file.name)
+            except OSError:
+                pass
+            raise
+        finally:
+            tmp_file.close()
+
+        # Validar que sea un Excel real (no un archivo con extensión falsa)
+        if not _validar_mime_excel(tmp_path):
+            flash("El archivo no es un archivo Excel .xlsx válido.", "danger")
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            return redirect(url_for("routes.producto_importar"))
 
         try:
             headers_raw, col_indices, filas, errores_prev = _parse_excel(tmp_path)
@@ -1036,7 +1068,6 @@ def _parse_excel_movimiento(tipo, file):
 @routes_bp.route("/entradas/importar", methods=["GET", "POST"])
 @login_required
 def entradas_importar():
-    import uuid as _uuid
     import tempfile as _tempfile
 
     if request.method == "POST":
@@ -1053,9 +1084,28 @@ def entradas_importar():
             flash("Solo se aceptan archivos .xlsx (Excel moderno).", "warning")
             return redirect(url_for("routes.entradas_importar"))
 
-        tmp_suffix = _uuid.uuid4().hex[:12]
-        tmp_path = os.path.join(_tempfile.gettempdir(), f"almacen_entrada_{tmp_suffix}.xlsx")
-        file.save(tmp_path)
+        tmp_file = _tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
+        try:
+            file.save(tmp_file.name)
+            tmp_path = tmp_file.name
+        except Exception:
+            tmp_file.close()
+            try:
+                os.unlink(tmp_file.name)
+            except OSError:
+                pass
+            raise
+        finally:
+            tmp_file.close()
+
+        # Validar que sea un Excel real (no un archivo con extensión falsa)
+        if not _validar_mime_excel(tmp_path):
+            flash("El archivo no es un archivo Excel .xlsx válido.", "danger")
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            return redirect(url_for("routes.entradas_importar"))
 
         try:
             headers_raw, col_indices, filas, errores_prev = _parse_excel_movimiento("entrada", tmp_path)
@@ -1188,7 +1238,6 @@ def entradas_importar_confirmar():
 @routes_bp.route("/salidas/importar", methods=["GET", "POST"])
 @login_required
 def salidas_importar():
-    import uuid as _uuid
     import tempfile as _tempfile
 
     if request.method == "POST":
@@ -1205,9 +1254,28 @@ def salidas_importar():
             flash("Solo se aceptan archivos .xlsx (Excel moderno).", "warning")
             return redirect(url_for("routes.salidas_importar"))
 
-        tmp_suffix = _uuid.uuid4().hex[:12]
-        tmp_path = os.path.join(_tempfile.gettempdir(), f"almacen_salida_{tmp_suffix}.xlsx")
-        file.save(tmp_path)
+        tmp_file = _tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
+        try:
+            file.save(tmp_file.name)
+            tmp_path = tmp_file.name
+        except Exception:
+            tmp_file.close()
+            try:
+                os.unlink(tmp_file.name)
+            except OSError:
+                pass
+            raise
+        finally:
+            tmp_file.close()
+
+        # Validar que sea un Excel real (no un archivo con extensión falsa)
+        if not _validar_mime_excel(tmp_path):
+            flash("El archivo no es un archivo Excel .xlsx válido.", "danger")
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            return redirect(url_for("routes.salidas_importar"))
 
         try:
             headers_raw, col_indices, filas, errores_prev = _parse_excel_movimiento("salida", tmp_path)

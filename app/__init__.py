@@ -59,13 +59,22 @@ def create_app(testing=False):
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY")
     if not app.config["SECRET_KEY"]:
-        if app.debug or app.config.get("TESTING"):
-            app.config["SECRET_KEY"] = "dev-secret-key-insecure"
+        if app.config.get("TESTING"):
+            app.config["SECRET_KEY"] = "test-secret-key-insecure"
+            app.logger.warning(
+                "SECRET_KEY no configurado. Usando clave insegura para TESTING."
+            )
         else:
             raise RuntimeError(
                 "SECRET_KEY no está configurado. "
                 "Define la variable de entorno SECRET_KEY antes de iniciar."
             )
+    elif not app.config.get("TESTING") and len(app.config["SECRET_KEY"]) < 16:
+        app.logger.warning(
+            "SECRET_KEY es muy corta (%d caracteres). "
+            "Usa al menos 16 caracteres para mayor seguridad.",
+            len(app.config["SECRET_KEY"]),
+        )
     app.config["PERMANENT_SESSION_LIFETIME"] = 1800  # 30 minutos
     app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB límite de subida
     app.config["SESSION_COOKIE_HTTPONLY"] = True
