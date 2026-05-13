@@ -94,6 +94,7 @@
                     </a>
                     <form method="POST" action="{{ url_for('routes.producto_importar_confirmar') }}"
                           onsubmit="return confirm('¿Confirmas la importación de {{ total_filas }} productos?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="tmp_path" value="{{ tmp_path }}">
                         <button type="submit" class="btn btn-success btn-lg">
                             <i class="bi bi-check-lg me-1"></i>Confirmar importación ({{ total_filas }} registros)
@@ -137,6 +138,7 @@
                 </div>
 
                 <form method="POST" enctype="multipart/form-data" id="uploadForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <div id="dropZone" class="drop-zone border border-2 border-dashed rounded-3 p-5 text-center">
                             <i class="bi bi-cloud-upload display-3 text-primary"></i>
@@ -282,3 +284,4 @@
 })();
 </script>
 {% endblock %}
+ %}

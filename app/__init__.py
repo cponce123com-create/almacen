@@ -5,11 +5,13 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_migrate import Migrate
+from flask_wtf.csrf import CSRFProtect
 from sqlalchemy import event as sa_event
 
 db = SQLAlchemy()
 login_manager = LoginManager()
 migrate = Migrate()
+csrf = CSRFProtect()
 
 
 def create_app(testing=False):
@@ -66,11 +68,16 @@ def create_app(testing=False):
             )
     app.config["PERMANENT_SESSION_LIFETIME"] = 1800  # 30 minutos
     app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB límite de subida
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["WTF_CSRF_ENABLED"] = not testing
+    app.config["WTF_CSRF_TIME_LIMIT"] = 3600  # 1 hora
 
     # Inicializar extensiones
     db.init_app(app)
     login_manager.init_app(app)
     migrate.init_app(app, db)
+    csrf.init_app(app)
 
     login_manager.login_view = "routes.login"
     login_manager.login_message = "Por favor inicia sesión para acceder."

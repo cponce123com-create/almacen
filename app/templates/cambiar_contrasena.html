@@ -16,6 +16,7 @@
         <div class="card shadow-sm border-0">
             <div class="card-body p-4">
                 <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label for="current_password" class="form-label">Contraseña actual <span class="text-danger">*</span></label>
                         <input type="password" class="form-control" id="current_password" name="current_password"

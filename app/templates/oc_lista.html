@@ -78,6 +78,7 @@
                             {% if oc.estado != "CERRADA" %}
                             <form method="POST" action="{{ url_for('routes.oc_cerrar', oc_id=oc.id) }}" class="d-inline"
                                   onsubmit="return confirm('¿Marcar OC {{ oc.numero }} como CERRADA?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-sm btn-outline-success" title="Marcar como CERRADA">
                                     <i class="bi bi-check-lg"></i>
                                 </button>
@@ -85,6 +86,7 @@
                             {% endif %}
                             <form method="POST" action="{{ url_for('routes.oc_eliminar', oc_id=oc.id) }}" class="d-inline"
                                   onsubmit="return confirm('¿Eliminar OC {{ oc.numero }}?{% if oc.entradas %} Tiene {{ oc.entradas|length }} entrada(s) asociada(s).{% endif %}');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"
                                         {% if oc.entradas %}disabled{% endif %}>
                                     <i class="bi bi-trash"></i>

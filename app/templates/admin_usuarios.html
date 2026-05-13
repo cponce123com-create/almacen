@@ -38,6 +38,7 @@
                             <form method="POST" action="{{ url_for('routes.admin_usuario_eliminar', user_id=u.id) }}"
                                   style="display:inline;"
                                   onsubmit="return confirm('¿Eliminar usuario {{ u.username }}?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
                                     <i class="bi bi-trash"></i>
                                 </button>

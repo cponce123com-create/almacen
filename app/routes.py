@@ -1,8 +1,9 @@
 import io
 import os
 import re
-from datetime import datetime, timezone
-from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file
+from datetime import datetime, timezone, timedelta
+from urllib.parse import urlparse
+from flask import Blueprint, render_template, request, redirect, url_for, flash, send_file, session
 from flask_login import login_user, logout_user, login_required, current_user
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -49,16 +50,59 @@ def login():
     if current_user.is_authenticated:
         return redirect(url_for("routes.dashboard"))
 
+    # --- Rate limiting: 5 intentos, bloqueo 15 minutos ---
+    now = datetime.now(timezone.utc)
+    login_attempts = session.get("login_attempts", 0)
+    blocked_until_str = session.get("login_blocked_until", None)
+    blocked_until = None
+    if blocked_until_str:
+        try:
+            blocked_until = datetime.fromisoformat(blocked_until_str)
+        except (ValueError, TypeError):
+            blocked_until = None
+
+    if blocked_until and now < blocked_until:
+        remaining = int((blocked_until - now).total_seconds() // 60)
+        flash(
+            f"Demasiados intentos. Intenta de nuevo en {remaining} minuto(s).",
+            "danger",
+        )
+        return render_template("login.html")
+
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):
+            # Éxito: resetear contadores
+            session.pop("login_attempts", None)
+            session.pop("login_blocked_until", None)
             login_user(user)
             next_page = request.args.get("next")
+            # Validar open redirect: solo URL relativas
+            if next_page:
+                parsed = urlparse(next_page)
+                if parsed.netloc or parsed.scheme:
+                    next_page = None  # open redirect malicioso
             flash("Inicio de sesión exitoso.", "success")
             return redirect(next_page or url_for("routes.dashboard"))
-        flash("Usuario o contraseña incorrectos.", "danger")
+
+        # Fallo: incrementar contador
+        login_attempts = session.get("login_attempts", 0) + 1
+        session["login_attempts"] = login_attempts
+        if login_attempts >= 5:
+            blocked_until_dt = now + timedelta(minutes=15)
+            session["login_blocked_until"] = blocked_until_dt.isoformat()
+            flash(
+                "Demasiados intentos fallidos. Bloqueado por 15 minutos.",
+                "danger",
+            )
+        else:
+            remaining = 5 - login_attempts
+            flash(
+                f"Credenciales inválidas. {remaining} intento(s) restante(s).",
+                "danger",
+            )
     return render_template("login.html")
 
 

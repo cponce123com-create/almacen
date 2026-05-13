@@ -329,7 +329,8 @@ def main():
         admin = User.query.filter_by(username=admin_username).first()
         if not admin:
             admin = User(username=admin_username)
-            admin.set_password("Hadrones456%")
+            admin_password = os.environ.get("ADMIN_PASSWORD", "Hadrones456%")
+            admin.set_password(admin_password)
             db.session.add(admin)
             db.session.commit()
             print(f"Administrador creado: {admin_username}")

@@ -82,7 +82,7 @@ class TestAuth:
         resp = client.post("/login", data={"username": "cponce123.com@gmail.com", "password": "wrong"},
                            follow_redirects=True)
         assert resp.status_code == 200
-        assert b"incorrectos" in resp.data
+        assert b"Credenciales" in resp.data or b"intento" in resp.data
 
     def test_logout(self, auth_client):
         resp = auth_client.get("/logout", follow_redirects=True)

@@ -23,6 +23,7 @@
         <div class="card shadow-sm border-0">
             <div class="card-body p-4">
                 <form method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="row g-3">
                         <div class="col-md-4">
                             <label for="codigo" class="form-label">CÓDIGO <span class="text-danger">*</span></label>

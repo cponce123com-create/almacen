@@ -39,9 +39,10 @@
                             </a>
                             <form method="POST" action="{{ url_for('routes.familia_eliminar', familia_id=f.id) }}"
                                   style="display:inline;"
-                                  onsubmit="return confirm('¿Eliminar la familia «{{ f.nombre }}»?
-
-Solo se puede eliminar si no tiene productos asociados.');">
+                                  onsubmit="return confirm('¿Eliminar la familia «{{ f.nombre }}»?\
+                            \
+                            Solo se puede eliminar si no tiene productos asociados.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
                                     <i class="bi bi-trash"></i>
                                 </button>

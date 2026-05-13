@@ -21,6 +21,7 @@
         <form method="POST" action="{{ url_for('routes.producto_eliminar_todos') }}"
               style="display:inline;"
               onsubmit="return confirm('¿Eliminar TODOS los productos que NO tengan movimientos asociados? Esta acción no se puede deshacer.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-outline-danger" title="Eliminar todos los productos sin movimientos">
                 <i class="bi bi-trash3 me-1"></i>Borrar Todos
             </button>
@@ -107,6 +108,7 @@
                     <form method="POST" action="{{ url_for('routes.producto_eliminar', producto_id=p.id) }}"
                           style="display:inline;"
                           onsubmit="return confirm('¿Eliminar el producto {{ p.codigo }} - {{ p.descripcion|truncate(30) }}?');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
                             <i class="bi bi-trash"></i>
                         </button>
@@ -198,8 +200,10 @@
                         return;
                     }
                     data.results.forEach(function(p) {
+                        var csrfInput = '<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">';
                         var acciones = '<a href="/productos/editar/' + p.id + '" class="btn btn-sm btn-outline-primary" title="Editar"><i class="bi bi-pencil"></i></a>' +
                             '<form method="POST" action="/productos/eliminar/' + p.id + '" style="display:inline;" onsubmit="return confirm(\'¿Eliminar ' + p.codigo + '?\');">' +
+                            csrfInput +
                             '<button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash"></i></button></form>';
                         var stock = p.stock_actual !== undefined ? parseFloat(p.stock_actual).toFixed(2) : '0.00';
                         var row = '<tr>' +

@@ -36,8 +36,9 @@
                             </a>
                             <form method="POST" action="{{ url_for('routes.almacen_eliminar', almacen_id=a.id) }}"
                                   style="display:inline"
-                                  onsubmit="return confirm('¿Eliminar almacén {{ a.nombre }}?
-Esta acción no se puede deshacer.');">
+                                  onsubmit="return confirm('¿Eliminar almacén {{ a.nombre }}?\
+                            Esta acción no se puede deshacer.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-sm btn-danger">
                                     <i class="bi bi-trash"></i> Eliminar
                                 </button>
