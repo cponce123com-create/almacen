@@ -87,6 +87,36 @@ class Salida(db.Model):
         return f"<Salida {self.id} - Prod:{self.producto_id} Cant:{self.cantidad}>"
 
 
+class AuditLog(db.Model):
+    __tablename__ = "audit_log"
+    id = db.Column(db.Integer, primary_key=True)
+    tabla = db.Column(db.String(50), nullable=False, index=True)
+    registro_id = db.Column(db.Integer, nullable=False)
+    campo = db.Column(db.String(50), nullable=False)
+    valor_anterior = db.Column(db.Text, default="")
+    valor_nuevo = db.Column(db.Text, default="")
+    usuario = db.Column(db.String(80), nullable=False)
+    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+    def __repr__(self):
+        return f"<AuditLog {self.tabla}#{self.registro_id} {self.campo}>"
+
+
+def audit_log(tabla, registro_id, campo, valor_anterior, valor_nuevo, usuario=None):
+    """Helper para registrar un cambio en el log de auditoría."""
+    if valor_anterior == valor_nuevo:
+        return
+    entry = AuditLog(
+        tabla=tabla,
+        registro_id=registro_id,
+        campo=campo,
+        valor_anterior=str(valor_anterior) if valor_anterior is not None else "",
+        valor_nuevo=str(valor_nuevo) if valor_nuevo is not None else "",
+        usuario=usuario or "sistema",
+    )
+    db.session.add(entry)
+
+
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))

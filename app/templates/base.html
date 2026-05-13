@@ -47,6 +47,9 @@
                 <a href="{{ url_for('routes.admin_usuarios') }}" class="list-group-item list-group-item-action bg-dark text-white border-secondary {% if request.endpoint and request.endpoint.startswith('routes.admin_') %}active{% endif %}">
                     <i class="bi bi-people-fill me-2"></i>Usuarios
                 </a>
+                <a href="{{ url_for('routes.auditoria') }}" class="list-group-item list-group-item-action bg-dark text-white border-secondary {% if request.endpoint == 'routes.auditoria' %}active{% endif %}">
+                    <i class="bi bi-journal-text me-2"></i>Auditoría
+                </a>
                 {% endif %}
             </div>
             <div class="mt-auto p-3 border-top border-secondary">

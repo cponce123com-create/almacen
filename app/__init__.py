@@ -84,7 +84,7 @@ def create_app(testing=False):
     # Crear tablas y configurar SQLite WAL mode
     # ------------------------------------------------------------------
     with app.app_context():
-        from app.models import User, Producto, Entrada, Salida
+        from app.models import User, Producto, Entrada, Salida, AuditLog
         db.create_all()
 
         # Activar PRAGMA optimizados para SQLite (WAL mode = mejor concurrencia)

@@ -8,7 +8,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from app import db
-from app.models import User, Producto, Entrada, Salida
+from app.models import User, Producto, Entrada, Salida, AuditLog, audit_log
 
 routes_bp = Blueprint("routes", __name__)
 
@@ -1383,6 +1383,14 @@ def _producto_form(producto=None):
                 flash(e, "danger")
             return render_template("producto_form.html", producto=producto, valores=request.form)
 
+        is_edit = producto is not None
+        if is_edit:
+            old_codigo = producto.codigo
+            old_descripcion = producto.descripcion
+            old_um = producto.um
+            old_familia = producto.familia
+            old_stock_minimo = producto.stock_minimo
+
         if producto is None:
             producto = Producto()
             db.session.add(producto)
@@ -1393,6 +1401,13 @@ def _producto_form(producto=None):
         producto.um = um
         producto.familia = familia
         producto.stock_minimo = stock_minimo
+
+        if is_edit:
+            audit_log("productos", producto.id, "codigo", old_codigo, codigo, current_user.username)
+            audit_log("productos", producto.id, "descripcion", old_descripcion, descripcion, current_user.username)
+            audit_log("productos", producto.id, "um", old_um, um, current_user.username)
+            audit_log("productos", producto.id, "familia", old_familia, familia, current_user.username)
+            audit_log("productos", producto.id, "stock_minimo", old_stock_minimo, stock_minimo, current_user.username)
 
         db.session.commit()
         flash("Producto guardado correctamente.", "success")
@@ -1514,6 +1529,15 @@ def entrada_editar(entrada_id):
                 flash(e, "danger")
             return render_template("entrada_form.html", entrada=entrada, productos=productos_list, valores=request.form)
 
+        # Capturar valores anteriores para auditoría
+        old_cantidad = entrada.cantidad
+        old_zona = entrada.zona
+        old_ubicacion = entrada.ubicacion
+        old_alm = entrada.alm
+        old_oc = entrada.oc
+        old_guia_remision = entrada.guia_remision
+        old_fecha_ingreso = entrada.fecha_ingreso
+
         # Ajustar stock: revertir cantidad anterior y aplicar nueva
         diferencia = nueva_cantidad - entrada.cantidad
         producto.stock_actual += diferencia
@@ -1527,6 +1551,14 @@ def entrada_editar(entrada_id):
         entrada.familia = familia or entrada.familia
         entrada.fecha_ingreso = fecha_ingreso
         entrada.um = producto.um
+
+        audit_log("entradas", entrada.id, "cantidad", old_cantidad, nueva_cantidad, current_user.username)
+        audit_log("entradas", entrada.id, "zona", old_zona, zona, current_user.username)
+        audit_log("entradas", entrada.id, "ubicacion", old_ubicacion, ubicacion, current_user.username)
+        audit_log("entradas", entrada.id, "alm", old_alm, alm or old_alm, current_user.username)
+        audit_log("entradas", entrada.id, "oc", old_oc, oc, current_user.username)
+        audit_log("entradas", entrada.id, "guia_remision", old_guia_remision, guia_remision, current_user.username)
+        audit_log("entradas", entrada.id, "fecha_ingreso", str(old_fecha_ingreso), str(fecha_ingreso), current_user.username)
 
         db.session.commit()
         flash(f"Entrada actualizada. Stock de {producto.descripcion}: {producto.stock_actual:.2f} {producto.um}", "success")
@@ -1666,6 +1698,15 @@ def salida_editar(salida_id):
                 flash(e, "danger")
             return render_template("salida_form.html", salida=salida, productos=productos_list, valores=request.form)
 
+        # Capturar valores anteriores para auditoría
+        old_cantidad = salida.cantidad
+        old_nro_vale = salida.nro_vale
+        old_oi = salida.oi
+        old_c_costo = salida.c_costo
+        old_maquina = salida.maquina
+        old_categoria = salida.categoria
+        old_fecha_salida = salida.fecha_salida
+
         # Calcular diferencia y validar stock disponible
         diferencia = nueva_cantidad - salida.cantidad
         if diferencia > 0 and diferencia > producto.stock_actual:
@@ -1685,6 +1726,14 @@ def salida_editar(salida_id):
         salida.categoria = categoria
         salida.fecha_salida = fecha_salida
         salida.um = producto.um
+
+        audit_log("salidas", salida.id, "cantidad", old_cantidad, nueva_cantidad, current_user.username)
+        audit_log("salidas", salida.id, "nro_vale", old_nro_vale, nro_vale, current_user.username)
+        audit_log("salidas", salida.id, "oi", old_oi, oi, current_user.username)
+        audit_log("salidas", salida.id, "c_costo", old_c_costo, c_costo, current_user.username)
+        audit_log("salidas", salida.id, "maquina", old_maquina, maquina, current_user.username)
+        audit_log("salidas", salida.id, "categoria", old_categoria, categoria, current_user.username)
+        audit_log("salidas", salida.id, "fecha_salida", str(old_fecha_salida), str(fecha_salida), current_user.username)
 
         db.session.commit()
         flash(f"Salida actualizada. Stock de {producto.descripcion}: {producto.stock_actual:.2f} {producto.um}", "success")
@@ -2245,3 +2294,47 @@ def admin_usuario_eliminar(user_id):
     db.session.commit()
     flash(f"Usuario '{user.username}' eliminado.", "success")
     return redirect(url_for("routes.admin_usuarios"))
+
+
+# ---------------------------------------------------------------------------
+# Auditoría (solo administrador)
+# ---------------------------------------------------------------------------
+
+@routes_bp.route("/auditoria")
+@login_required
+def auditoria():
+    """Ver el registro de auditoría de cambios."""
+    check = _admin_required()
+    if check:
+        return check
+
+    tabla = request.args.get("tabla", "").strip()
+    usuario = request.args.get("usuario", "").strip()
+    fecha_desde = request.args.get("fecha_desde", "").strip()
+    fecha_hasta = request.args.get("fecha_hasta", "").strip()
+    page = request.args.get("page", 1, type=int)
+    per_page = 50
+
+    query = AuditLog.query
+
+    if tabla:
+        query = query.filter(AuditLog.tabla == tabla)
+    if usuario:
+        query = query.filter(AuditLog.usuario.ilike(f"%{usuario}%"))
+    if fecha_desde:
+        try:
+            fd = datetime.strptime(fecha_desde, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            query = query.filter(AuditLog.timestamp >= fd)
+        except ValueError:
+            pass
+    if fecha_hasta:
+        try:
+            fh = datetime.strptime(fecha_hasta, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            query = query.filter(AuditLog.timestamp <= fh)
+        except ValueError:
+            pass
+
+    query = query.order_by(AuditLog.timestamp.desc())
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    return render_template("auditoria.html", pagination=pagination)
