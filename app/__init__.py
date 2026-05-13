@@ -84,7 +84,7 @@ def create_app(testing=False):
     # Crear tablas y configurar SQLite WAL mode
     # ------------------------------------------------------------------
     with app.app_context():
-        from app.models import User, Producto, Entrada, Salida, AuditLog, Familia, Almacen
+        from app.models import User, Producto, Entrada, Salida, AuditLog, Familia, Almacen, OrdenCompra
         db.create_all()
 
         # Crear almacén por defecto si no existe ninguno

@@ -43,6 +43,9 @@
                 <a href="{{ url_for('routes.historial') }}" class="list-group-item list-group-item-action bg-dark text-white border-secondary {% if request.endpoint == 'routes.historial' %}active{% endif %}">
                     <i class="bi bi-clock-history me-2"></i>Historial
                 </a>
+                <a href="{{ url_for('routes.oc_lista') }}" class="list-group-item list-group-item-action bg-dark text-white border-secondary {% if request.endpoint and request.endpoint.startswith('routes.oc_') %}active{% endif %}">
+                    <i class="bi bi-file-text me-2"></i>Órdenes de Compra
+                </a>
                 {% if current_user.is_admin %}
                 <a href="{{ url_for('routes.admin_usuarios') }}" class="list-group-item list-group-item-action bg-dark text-white border-secondary {% if request.endpoint and request.endpoint.startswith('routes.admin_') %}active{% endif %}">
                     <i class="bi bi-people-fill me-2"></i>Usuarios

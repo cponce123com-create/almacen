@@ -8,7 +8,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 from app import db
-from app.models import User, Producto, Entrada, Salida, AuditLog, audit_log, Familia, Almacen
+from app.models import User, Producto, Entrada, Salida, AuditLog, audit_log, Familia, Almacen, OrdenCompra
 
 routes_bp = Blueprint("routes", __name__)
 
@@ -1440,6 +1440,7 @@ def _producto_form(producto=None):
 @login_required
 def entradas():
     productos_list = Producto.query.order_by(Producto.descripcion.asc()).all()
+    ordenes_compra = OrdenCompra.query.order_by(OrdenCompra.numero.asc()).all()
 
     if request.method == "POST":
         producto_id = request.form.get("producto_id")
@@ -1474,7 +1475,7 @@ def entradas():
         if errores:
             for e in errores:
                 flash(e, "danger")
-            return render_template("entrada_form.html", productos=productos_list, valores=request.form)
+            return render_template("entrada_form.html", productos=productos_list, valores=request.form, ordenes_compra=ordenes_compra)
 
         producto = db.session.get(Producto, int(producto_id))
         if not producto:
@@ -1493,6 +1494,12 @@ def entradas():
             guia_remision=guia_remision,
             familia=familia or producto.familia,
         )
+        # Vincular OC por número si existe
+        if oc:
+            oc_obj = OrdenCompra.query.filter_by(numero=oc).first()
+            if oc_obj:
+                entrada.oc_id = oc_obj.id
+
         producto.stock_actual += cantidad
 
         db.session.add(entrada)
@@ -1500,7 +1507,7 @@ def entradas():
         flash(f"Entrada registrada. Stock actualizado: {producto.descripcion} → {producto.stock_actual:.2f} {producto.um}", "success")
         return redirect(url_for("routes.entradas"))
 
-    return render_template("entrada_form.html", productos=productos_list)
+    return render_template("entrada_form.html", productos=productos_list, ordenes_compra=ordenes_compra)
 
 
 @routes_bp.route("/entradas/editar/<int:entrada_id>", methods=["GET", "POST"])
@@ -1513,6 +1520,7 @@ def entrada_editar(entrada_id):
         return redirect(url_for("routes.historial"))
     producto = entrada.producto
     productos_list = Producto.query.order_by(Producto.descripcion.asc()).all()
+    ordenes_compra = OrdenCompra.query.order_by(OrdenCompra.numero.asc()).all()
 
     if request.method == "POST":
         cantidad_str = request.form.get("cantidad", "0").strip()
@@ -1523,6 +1531,7 @@ def entrada_editar(entrada_id):
         guia_remision = request.form.get("guia_remision", "").strip()
         familia = request.form.get("familia", "").strip()
         fecha_str = request.form.get("fecha_ingreso", "").strip()
+        oc_id_str = request.form.get("oc_id", "").strip()
 
         errores = []
         try:
@@ -1543,7 +1552,7 @@ def entrada_editar(entrada_id):
         if errores:
             for e in errores:
                 flash(e, "danger")
-            return render_template("entrada_form.html", entrada=entrada, productos=productos_list, valores=request.form)
+            return render_template("entrada_form.html", entrada=entrada, productos=productos_list, valores=request.form, ordenes_compra=ordenes_compra)
 
         # Capturar valores anteriores para auditoría
         old_cantidad = entrada.cantidad
@@ -1568,6 +1577,29 @@ def entrada_editar(entrada_id):
         entrada.fecha_ingreso = fecha_ingreso
         entrada.um = producto.um
 
+        # Actualizar vínculo con OC
+        if oc_id_str:
+            try:
+                oc_id_val = int(oc_id_str)
+                if oc_id_val == 0:
+                    entrada.oc_id = None
+                else:
+                    oc_obj = db.session.get(OrdenCompra, oc_id_val)
+                    if oc_obj:
+                        entrada.oc_id = oc_id_val
+            except (ValueError, TypeError):
+                pass
+        else:
+            # Auto-link by number if oc_id not specified
+            if oc:
+                oc_obj = OrdenCompra.query.filter_by(numero=oc).first()
+                if oc_obj:
+                    entrada.oc_id = oc_obj.id
+                else:
+                    entrada.oc_id = None
+            else:
+                entrada.oc_id = None
+
         audit_log("entradas", entrada.id, "cantidad", old_cantidad, nueva_cantidad, current_user.username)
         audit_log("entradas", entrada.id, "zona", old_zona, zona, current_user.username)
         audit_log("entradas", entrada.id, "ubicacion", old_ubicacion, ubicacion, current_user.username)
@@ -1580,7 +1612,7 @@ def entrada_editar(entrada_id):
         flash(f"Entrada actualizada. Stock de {producto.descripcion}: {producto.stock_actual:.2f} {producto.um}", "success")
         return redirect(url_for("routes.historial"))
 
-    return render_template("entrada_form.html", entrada=entrada, productos=productos_list)
+    return render_template("entrada_form.html", entrada=entrada, productos=productos_list, ordenes_compra=ordenes_compra)
 
 
 @routes_bp.route("/entradas/eliminar/<int:entrada_id>", methods=["POST"])
@@ -2422,6 +2454,118 @@ def almacen_eliminar(almacen_id):
     db.session.commit()
     flash(f"Almacén '{almacen.nombre}' eliminado correctamente.", "success")
     return redirect(url_for("routes.almacenes"))
+
+
+# ===========================================================================
+# CRUD Órdenes de Compra
+# ===========================================================================
+
+@routes_bp.route("/oc")
+@login_required
+def oc_lista():
+    """Listar todas las órdenes de compra."""
+    ordenes = OrdenCompra.query.order_by(OrdenCompra.created_at.desc()).all()
+    return render_template("oc_lista.html", ordenes=ordenes)
+
+
+@routes_bp.route("/oc/nuevo", methods=["GET", "POST"])
+@login_required
+def oc_nuevo():
+    """Crear nueva orden de compra."""
+    if request.method == "POST":
+        numero = request.form.get("numero", "").strip().upper()
+        proveedor = request.form.get("proveedor", "").strip()
+        estado = request.form.get("estado", "PENDIENTE").strip().upper()
+
+        errores = []
+        if not numero:
+            errores.append("El número de orden de compra es obligatorio.")
+        if OrdenCompra.query.filter_by(numero=numero).first():
+            errores.append(f"La OC '{numero}' ya existe.")
+
+        if errores:
+            for e in errores:
+                flash(e, "danger")
+            return render_template("oc_form.html", valores=request.form)
+
+        oc = OrdenCompra(numero=numero, proveedor=proveedor, estado=estado)
+        db.session.add(oc)
+        db.session.commit()
+        flash(f"OC '{numero}' creada correctamente.", "success")
+        return redirect(url_for("routes.oc_lista"))
+
+    return render_template("oc_form.html")
+
+
+@routes_bp.route("/oc/editar/<int:oc_id>", methods=["GET", "POST"])
+@login_required
+def oc_editar(oc_id):
+    """Editar orden de compra existente."""
+    oc = db.session.get(OrdenCompra, oc_id)
+    if not oc:
+        flash("Orden de compra no encontrada.", "danger")
+        return redirect(url_for("routes.oc_lista"))
+
+    if request.method == "POST":
+        numero = request.form.get("numero", "").strip().upper()
+        proveedor = request.form.get("proveedor", "").strip()
+        estado = request.form.get("estado", "PENDIENTE").strip().upper()
+
+        errores = []
+        if not numero:
+            errores.append("El número de orden de compra es obligatorio.")
+
+        existente = OrdenCompra.query.filter(OrdenCompra.numero == numero, OrdenCompra.id != oc_id).first()
+        if existente:
+            errores.append(f"La OC '{numero}' ya existe.")
+
+        if errores:
+            for e in errores:
+                flash(e, "danger")
+            return render_template("oc_form.html", oc=oc, valores=request.form)
+
+        oc.numero = numero
+        oc.proveedor = proveedor
+        oc.estado = estado
+        db.session.commit()
+        flash(f"OC '{numero}' actualizada correctamente.", "success")
+        return redirect(url_for("routes.oc_lista"))
+
+    return render_template("oc_form.html", oc=oc)
+
+
+@routes_bp.route("/oc/eliminar/<int:oc_id>", methods=["POST"])
+@login_required
+def oc_eliminar(oc_id):
+    """Eliminar OC solo si no tiene entradas vinculadas."""
+    oc = db.session.get(OrdenCompra, oc_id)
+    if not oc:
+        flash("Orden de compra no encontrada.", "danger")
+        return redirect(url_for("routes.oc_lista"))
+
+    if oc.entradas and len(oc.entradas) > 0:
+        flash(f"No se puede eliminar: la OC '{oc.numero}' tiene {len(oc.entradas)} entrada(s) asociada(s).", "danger")
+        return redirect(url_for("routes.oc_lista"))
+
+    db.session.delete(oc)
+    db.session.commit()
+    flash(f"OC '{oc.numero}' eliminada correctamente.", "success")
+    return redirect(url_for("routes.oc_lista"))
+
+
+@routes_bp.route("/oc/cerrar/<int:oc_id>", methods=["POST"])
+@login_required
+def oc_cerrar(oc_id):
+    """Marcar OC como CERRADA."""
+    oc = db.session.get(OrdenCompra, oc_id)
+    if not oc:
+        flash("Orden de compra no encontrada.", "danger")
+        return redirect(url_for("routes.oc_lista"))
+
+    oc.estado = "CERRADA"
+    db.session.commit()
+    flash(f"OC '{oc.numero}' marcada como CERRADA.", "success")
+    return redirect(url_for("routes.oc_lista"))
 
 
 # ===========================================================================

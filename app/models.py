@@ -83,6 +83,18 @@ class Producto(db.Model):
         return self.familia or "—"
 
 
+class OrdenCompra(db.Model):
+    __tablename__ = "ordenes_compra"
+    id = db.Column(db.Integer, primary_key=True)
+    numero = db.Column(db.String(50), unique=True, nullable=False)
+    proveedor = db.Column(db.String(200), default="")
+    estado = db.Column(db.String(20), default="PENDIENTE")  # PENDIENTE, PARCIAL, CERRADA
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def __repr__(self):
+        return f"<OC {self.numero} ({self.estado})>"
+
+
 class Entrada(db.Model):
     __tablename__ = "entradas"
     id = db.Column(db.Integer, primary_key=True)
@@ -96,7 +108,10 @@ class Entrada(db.Model):
     oc = db.Column(db.String(50), nullable=True, default="")
     guia_remision = db.Column(db.String(50), nullable=True, default="")
     familia = db.Column(db.String(100), nullable=True, default="")
+    oc_id = db.Column(db.Integer, db.ForeignKey("ordenes_compra.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    orden_compra = db.relationship("OrdenCompra", backref="entradas")
 
     def __repr__(self):
         return f"<Entrada {self.id} - Prod:{self.producto_id} Cant:{self.cantidad}>"

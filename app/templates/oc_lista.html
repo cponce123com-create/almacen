@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Órdenes de Compra - Almacén{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0"><i class="bi bi-file-text me-2"></i>Órdenes de Compra</h4>
+    <a href="{{ url_for('routes.oc_nuevo') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg me-1"></i>Nueva OC
+    </a>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        {% if ordenes %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>#</th>
+                        <th>Número</th>
+                        <th>Proveedor</th>
+                        <th>Estado</th>
+                        <th>Entradas</th>
+                        <th>Creada</th>
+                        <th class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for oc in ordenes %}
+                    <tr>
+                        <td>{{ oc.id }}</td>
+                        <td><strong>{{ oc.numero }}</strong></td>
+                        <td>{{ oc.proveedor or "—" }}</td>
+                        <td>
+                            {% set estados = {"PENDIENTE": "warning", "PARCIAL": "info", "CERRADA": "success"} %}
+                            <span class="badge bg-{{ estados.get(oc.estado, 'secondary') }}">
+                                {{ oc.estado }}
+                            </span>
+                        </td>
+                        <td>{{ oc.entradas|length }}</td>
+                        <td class="small">{{ oc.created_at.strftime('%d/%m/%Y %H:%M') if oc.created_at else '—' }}</td>
+                        <td class="text-end">
+                            <a href="{{ url_for('routes.oc_editar', oc_id=oc.id) }}" class="btn btn-sm btn-outline-primary" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            {% if oc.estado != "CERRADA" %}
+                            <form method="POST" action="{{ url_for('routes.oc_cerrar', oc_id=oc.id) }}" class="d-inline"
+                                  onsubmit="return confirm('¿Marcar OC {{ oc.numero }} como CERRADA?');">
+                                <button type="submit" class="btn btn-sm btn-outline-success" title="Marcar como CERRADA">
+                                    <i class="bi bi-check-lg"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                            <form method="POST" action="{{ url_for('routes.oc_eliminar', oc_id=oc.id) }}" class="d-inline"
+                                  onsubmit="return confirm('¿Eliminar OC {{ oc.numero }}?{% if oc.entradas %} Tiene {{ oc.entradas|length }} entrada(s) asociada(s).{% endif %}');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"
+                                        {% if oc.entradas %}disabled{% endif %}>
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+            <i class="bi bi-file-text display-4 d-block mb-3"></i>
+            <p>No hay órdenes de compra registradas.</p>
+            <a href="{{ url_for('routes.oc_nuevo') }}" class="btn btn-primary">
+                <i class="bi bi-plus-lg me-1"></i>Crear primera OC
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

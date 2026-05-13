@@ -69,7 +69,21 @@
                         <div class="col-md-6">
                             <label for="oc" class="form-label">ORDEN DE COMPRA (OC)</label>
                             <input type="text" class="form-control" id="oc" name="oc"
-                                   value="{{ valores.get('oc', e.oc if e else '') }}" maxlength="50">
+                                   value="{{ valores.get('oc', e.oc if e else '') }}" maxlength="50"
+                                   placeholder="Texto libre (ej: OC-001)">
+                            {% if ordenes_compra is defined and ordenes_compra %}
+                            <div class="mt-2">
+                                <label class="form-label small text-muted">O selecciona una OC existente:</label>
+                                <select class="form-select form-select-sm" id="oc_id" name="oc_id">
+                                    <option value="0">— Sin OC —</option>
+                                    {% for oc in ordenes_compra %}
+                                    <option value="{{ oc.id }}" {% if e and e.oc_id == oc.id %}selected{% endif %}>
+                                        [{{ oc.estado }}] {{ oc.numero }}{% if oc.proveedor %} - {{ oc.proveedor }}{% endif %}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            {% endif %}
                         </div>
                         <div class="col-md-6">
                             <label for="guia_remision" class="form-label">GUÍA DE REMISIÓN</label>
