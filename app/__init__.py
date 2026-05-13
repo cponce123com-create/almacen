@@ -92,27 +92,41 @@ def create_app(testing=False):
         # (db.create_all() no altera tablas ya creadas, solo crea nuevas)
         # ------------------------------------------------------------------
         from sqlalchemy import inspect as sa_inspect
+
+        _MIGRACIONES = {
+            "productos": [
+                ("familia_id", "INTEGER"),
+                ("almacen_id", "INTEGER"),
+            ],
+            "entradas": [
+                ("oc_id", "INTEGER"),
+            ],
+        }
+
         try:
             inspector = sa_inspect(db.engine)
-            cols = [c["name"] for c in inspector.get_columns("productos")]
-            migraciones = [
-                ("familia_id", "INTEGER REFERENCES familias(id)"),
-                ("almacen_id", "INTEGER REFERENCES almacenes(id)"),
-            ]
-            for col_name, col_type in migraciones:
-                if col_name not in cols:
-                    app.logger.info(
-                        "Migración: agregando columna %s a productos...", col_name
-                    )
-                    db.session.execute(
-                        db.text(
-                            f"ALTER TABLE productos ADD COLUMN {col_name} {col_type}"
+            for table_name, columns in _MIGRACIONES.items():
+                try:
+                    existing = {c["name"] for c in inspector.get_columns(table_name)}
+                except Exception:
+                    app.logger.warning("Migración: tabla %s no existe, se omite.", table_name)
+                    continue
+                for col_name, col_type in columns:
+                    if col_name not in existing:
+                        app.logger.info(
+                            "Migración: agregando columna %s a %s...",
+                            col_name, table_name,
                         )
-                    )
-                    db.session.commit()
-                    app.logger.info(
-                        "Migración: columna %s agregada correctamente.", col_name
-                    )
+                        db.session.execute(
+                            db.text(
+                                f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"
+                            )
+                        )
+                        db.session.commit()
+                        app.logger.info(
+                            "Migración: columna %s agregada a %s.",
+                            col_name, table_name,
+                        )
         except Exception as exc:
             app.logger.warning("Migración de columnas no aplicable: %s", exc)
             db.session.rollback()
