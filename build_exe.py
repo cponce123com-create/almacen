@@ -98,10 +98,10 @@ def _build_exe(console=True):
         add_data_args.append("{}{}{}".format(src, _sep, dst))
 
     # Configuracion de PyInstaller
+    # NOTA: No usar --icon con .svg porque Windows solo acepta .ico
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--name", "ALMACENERO",
-        "--icon", os.path.join(APP_DIR, "static", "favicon.svg") if os.path.exists(os.path.join(APP_DIR, "static", "favicon.svg")) else "NONE",
         "--distpath", os.path.join(PROJECT_DIR, "dist"),
         "--workpath", os.path.join(PROJECT_DIR, "build"),
         "--specpath", PROJECT_DIR,
@@ -110,9 +110,8 @@ def _build_exe(console=True):
     # Modo sin consola (para usuarios finales)
     if not console:
         cmd.append("--noconsole")
-        cmd.append("--uac-admin")  # No necesita admin realmente, pero evita warnings
 
-    # Agregar hidden imports necesarios para Flask
+    # Agregar hidden imports necesarios para Flask y dependencias
     hidden_imports = [
         "--hidden-import", "flask",
         "--hidden-import", "flask_sqlalchemy",
@@ -128,8 +127,7 @@ def _build_exe(console=True):
         "--hidden-import", "openpyxl",
         "--hidden-import", "sqlalchemy",
         "--hidden-import", "alembic",
-        "--hidden-import", "email_validator",
-        "--hidden-import", "python_magic",
+        "--hidden-import", "magic",
     ]
     cmd.extend(hidden_imports)
 
