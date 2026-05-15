@@ -90,10 +90,12 @@ def _build_exe(console=True):
     data_files.append((os.path.join(PROJECT_DIR, "requirements-lite.txt"), "."))
 
     # Construir argumento --add-data
+    # En Windows el separador es ';', en Linux/Mac es ':'
+    _sep = ";" if sys.platform == "win32" else ":"
     add_data_args = []
     for src, dst in data_files:
         add_data_args.append("--add-data")
-        add_data_args.append("{}:{}".format(src, dst))
+        add_data_args.append("{}{}{}".format(src, _sep, dst))
 
     # Configuracion de PyInstaller
     cmd = [

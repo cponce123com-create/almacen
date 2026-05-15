@@ -1,0 +1,34 @@
+name: Compilar .exe para Windows
+
+on:
+  push:
+    branches: [ main ]
+  # Tambien puedes activarlo manualmente desde GitHub
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Instalar dependencias
+        run: |
+          pip install --quiet -r requirements-lite.txt
+          pip install --quiet pyinstaller
+
+      - name: Compilar ALMACENERO.exe (sin consola)
+        run: python build_exe.py --no-console
+
+      - name: Subir .exe compilado
+        uses: actions/upload-artifact@v4
+        with:
+          name: ALMACENERO-Windows-Portable
+          path: dist/ALMACENERO/
