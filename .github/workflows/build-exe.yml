@@ -3,7 +3,6 @@ name: Compilar .exe para Windows
 on:
   push:
     branches: [ main ]
-  # Tambien puedes activarlo manualmente desde GitHub
   workflow_dispatch:
 
 jobs:
@@ -20,12 +19,10 @@ jobs:
           python-version: "3.13"
 
       - name: Instalar dependencias
-        run: |
-          pip install --quiet -r requirements-lite.txt
-          pip install --quiet pyinstaller
+        run: pip install -q -r requirements-lite.txt && pip install -q pyinstaller
 
-      - name: Compilar ALMACENERO.exe (sin consola)
-        run: python build_exe.py --no-console
+      - name: Compilar ALMACENERO.exe
+        run: pyinstaller --name ALMACENERO --noconsole --add-data "app/templates;app/templates" --add-data "app/static;app/static" --hidden-import flask --hidden-import flask_sqlalchemy --hidden-import flask_login --hidden-import flask_migrate --hidden-import flask_wtf --hidden-import openpyxl --exclude-module tkinter --exclude-module numpy --exclude-module pandas --exclude-module matplotlib --exclude-module PIL --exclude-module pip --exclude-module setuptools --exclude-module psycopg2 --exclude-module gunicorn app/app.py
 
       - name: Subir .exe compilado
         uses: actions/upload-artifact@v4
