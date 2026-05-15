@@ -1,0 +1,80 @@
+INSTRUCCIONES PARA WINDOWS PORTABLE
+=====================================
+
+ALMACENERO - Control de Inventarios
+Version Portable (sin necesidad de instalar)
+
+
+OPCION 1: EJECUTABLE COMPILADO (.exe) - RECOMENDADO
+---------------------------------------------------
+NO necesitas Python instalado. El .exe lleva todo incluido.
+
+PASOS:
+  1. En una PC con Windows y Python instalado, abre una terminal en esta carpeta
+  2. Ejecuta:  python build_exe.py
+  3. Espera unos minutos mientras se compila
+  4. Se crea la carpeta:  dist/ALMACENERO/
+  5. Copia TODA la carpeta  dist/ALMACENERO/  a un USB
+  6. En cualquier PC (sin Python), ejecuta:  ALMACENERO.exe
+  7. Se abrira automaticamente el navegador en:
+        http://127.0.0.1:5000
+
+  Para compilar sin ventana de consola:
+     python build_exe.py --no-console
+
+  Para limpiar y recompilar desde cero:
+     python build_exe.py --clean
+
+
+OPCION 2: CON PYTHON INSTALADO (mas liviano)
+---------------------------------------------
+Si la PC ya tiene Python 3.9+, solo haz doble clic en:
+
+    ALMACENERO.bat
+
+Esto creara automaticamente un entorno virtual (.venv),
+instalara las dependencias, y arrancara el servidor.
+
+O desde la terminal:
+    ALMACENERO.bat
+
+
+DATOS DE ACCESO POR DEFECTO:
+-----------------------------
+  Usuario:  cponce123.com@gmail.com
+  Clave:    Hadrones456%
+
+Puedes cambiar la clave desde el menu "Cambiar contrasena"
+una vez que inicies sesion.
+
+
+PUERTO:
+-------
+Por defecto usa el puerto 5000.
+Si esta ocupado, cambialo con:
+
+    set FLASK_PORT=8080
+    ALMACENERO.bat
+
+
+UBICACION DE LOS DATOS:
+------------------------
+- La base de datos se guarda en:  app/almacen.db
+- Puedes copiar este archivo para respaldar tus datos.
+- Para empezar de cero, borra app/almacen.db y reinicia.
+
+
+ARCHIVOS:
+---------
+  ALMACENERO.exe    -> Ejecutable portable (Windows)
+  ALMACENERO.bat    -> Lanzador para Python (Windows)
+  app/app.py        -> Punto de entrada de la aplicacion
+  app/almacen.db    -> Base de datos SQLite (tus datos)
+  datos_iniciales.xlsx -> Plantilla para importar datos
+
+
+NOTA:
+-----
+La primera vez que ejecutes necesitaras internet para
+descargar las dependencias de Python (solo en Opcion 2).
+La Opcion 1 (.exe compilado) funciona 100% sin internet.

@@ -1,4 +1,5 @@
 import os
+import sys
 import logging
 from logging.handlers import RotatingFileHandler
 from flask import Flask
@@ -65,10 +66,21 @@ def create_app(testing=False):
                 "SECRET_KEY no configurado. Usando clave insegura para TESTING."
             )
         else:
-            raise RuntimeError(
-                "SECRET_KEY no está configurado. "
-                "Define la variable de entorno SECRET_KEY antes de iniciar."
+            # Modo portable: generar automáticamente si no está configurado
+            import secrets as _secrets
+            app.config["SECRET_KEY"] = _secrets.token_hex(32)
+            app.logger.info(
+                "SECRET_KEY generado automáticamente (modo portable)."
             )
+            # Guardarlo en .env para sesiones persistentes
+            _dotenv_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"
+            )
+            try:
+                with open(_dotenv_path, "a") as _f:
+                    _f.write(f"\n# Generado automáticamente por el modo portable\nSECRET_KEY={app.config['SECRET_KEY']}\n")
+            except OSError:
+                pass  # Si no se puede escribir, no importa, la clave está en memoria
     elif not app.config.get("TESTING") and len(app.config["SECRET_KEY"]) < 16:
         app.logger.warning(
             "SECRET_KEY es muy corta (%d caracteres). "
@@ -104,9 +116,8 @@ def create_app(testing=False):
         def _add_security_headers(response):
             csp = (
                 "default-src 'self'; "
-                "script-src 'self' https://cdn.jsdelivr.net; "
-                "style-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com 'unsafe-inline'; "
-                "font-src 'self' https://cdn.jsdelivr.net; "
+                "script-src 'self'; "
+                "style-src 'self' 'unsafe-inline'; "
                 "img-src 'self' data:; "
                 "connect-src 'self'; "
                 "frame-ancestors 'none'; "

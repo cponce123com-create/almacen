@@ -32,5 +32,13 @@ build/
 logs/
 *.log
 
+# PyInstaller builds
+build/
+dist/
+*.spec
+
+# Windows portable
+*.bat
+
 # Temp import files
 /tmp/almacen_import_*
