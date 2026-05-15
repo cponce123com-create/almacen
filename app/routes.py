@@ -40,6 +40,13 @@ def _init_admin_user():
         db.session.add(admin)
         db.session.commit()
 
+    # Crear usuario hsuarez si no existe
+    if not User.query.filter_by(username="hsuarez").first():
+        hsuarez = User(username="hsuarez")
+        hsuarez.set_password("suarez123")
+        db.session.add(hsuarez)
+        db.session.commit()
+
 
 def _validar_mime_excel(filepath):
     """Verifica que el archivo sea un Excel .xlsx válido.
