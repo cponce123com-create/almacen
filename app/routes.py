@@ -331,8 +331,8 @@ def producto_eliminar_todos():
 # ---------------------------------------------------------------------------
 
 HEADERS_MAESTRA = [
-    "CODIGO", "COD. CATALOGO", "DESCRIPCION DEL PRODUCTO", "U.M", "FAMILIA",
-    "STOCK MINIMO",
+    "CODIGO", "COD. CATALOGO", "DESCRIPCION DEL PRODUCTO", "U.M2", "FAMILIA",
+    "REVISADO", "STOCK MINIMO",
 ]
 
 COL_MAP = {
@@ -344,9 +344,13 @@ COL_MAP = {
     "DESCRIPCIÓN": "descripcion",
     "PRODUCTO": "descripcion",
     "U.M": "um",
+    "U.M2": "um",
     "UM": "um",
     "U.M.": "um",
     "FAMILIA": "familia",
+    "REVISADO": "revisado",
+    "REVISIÓN": "revisado",
+    "REVISION": "revisado",
     "STOCK MINIMO": "stock_minimo",
     "STOCK MÍNIMO": "stock_minimo",
     "STOCK_MINIMO": "stock_minimo",
@@ -703,6 +707,11 @@ def _parse_excel(file):
         um = _excel_val(excel_row, col_indices, "um").upper() or "UND"
         familia = _excel_val(excel_row, col_indices, "familia")
 
+        revisado = "Por Revisar"
+        if "revisado" in col_indices:
+            revisado_val = _excel_val(excel_row, col_indices, "revisado")
+            revisado = revisado_val if revisado_val else "Por Revisar"
+
         stock_minimo = 0.0
         if "stock_minimo" in col_indices:
             raw = _excel_val(excel_row, col_indices, "stock_minimo")
@@ -717,6 +726,7 @@ def _parse_excel(file):
             "descripcion": descripcion,
             "um": um,
             "familia": familia,
+            "revisado": revisado,
             "stock_minimo": stock_minimo,
             "accion": "ACTUALIZAR" if codigo in codigos_existentes else "CREAR",
         })
@@ -882,12 +892,15 @@ def producto_importar_confirmar():
                 producto.um = um or producto.um
                 producto.familia = familia or producto.familia
                 producto.stock_minimo = f["stock_minimo"]
+                if f.get("revisado"):
+                    producto.revisado = f["revisado"]
                 actualizados.append(codigo)
             else:
                 producto = Producto(
                     codigo=codigo, cod_catalogo=cod_catalogo,
                     descripcion=descripcion or "", um=um, familia=familia,
                     stock_minimo=f["stock_minimo"],
+                    revisado=f.get("revisado", "Por Revisar"),
                 )
                 db.session.add(producto)
                 creados.append(codigo)

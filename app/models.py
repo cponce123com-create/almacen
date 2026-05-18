@@ -62,6 +62,7 @@ class Producto(db.Model):
     almacen_id = db.Column(db.Integer, db.ForeignKey("almacenes.id"), nullable=True)
     stock_actual = db.Column(db.Float, nullable=False, default=0.0)
     stock_minimo = db.Column(db.Float, nullable=False, default=0.0)
+    revisado = db.Column(db.String(20), nullable=True, default="Por Revisar")
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     entradas = db.relationship("Entrada", backref="producto", lazy="dynamic")

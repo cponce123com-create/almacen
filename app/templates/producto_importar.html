@@ -117,7 +117,7 @@
                 <h5 class="card-title mb-3">Instrucciones</h5>
                 <ol class="mb-3">
                     <li>Descarga la <strong>plantilla Excel</strong> con el botón de abajo.</li>
-                    <li>Llena los datos del catálogo (código, catálogo, descripción, unidad, familia, stock mínimo).</li>
+                    <li>Llena los datos del catálogo (código, catálogo, descripción, unidad, familia, revisado, stock mínimo).</li>
                     <li>Sube el archivo y <strong>revisa la vista previa</strong> antes de confirmar.</li>
                 </ol>
                 <p class="text-muted small mb-0">
@@ -145,7 +145,7 @@
                             <h5 class="mt-2">Arrastra tu archivo Excel aquí</h5>
                             <p class="text-muted mb-3">o haz clic para seleccionar</p>
                             <input type="file" class="form-control d-none" id="archivo" name="archivo"
-                                   accept=".xlsx" required>
+                                   accept=".xlsx">
                             <button type="button" class="btn btn-outline-primary" id="btnSeleccionar">
                                 <i class="bi bi-folder2-open me-1"></i>Seleccionar archivo
                             </button>
@@ -155,7 +155,7 @@
                     </div>
                     <div class="d-flex justify-content-end gap-2">
                         <a href="{{ url_for('routes.productos') }}" class="btn btn-secondary">Cancelar</a>
-                        <button type="submit" class="btn btn-primary">
+                        <button type="submit" class="btn btn-primary" id="btnVistaPrevia">
                             <i class="bi bi-eye me-1"></i>Vista previa
                         </button>
                     </div>
@@ -174,8 +174,9 @@
                                 <th>CODIGO</th>
                                 <th>COD. CATALOGO</th>
                                 <th>DESCRIPCION DEL PRODUCTO</th>
-                                <th>U.M</th>
+                                <th>U.M2</th>
                                 <th>FAMILIA</th>
+                                <th>REVISADO</th>
                                 <th>STOCK MINIMO</th>
                             </tr>
                         </thead>
@@ -186,6 +187,7 @@
                                 <td><span class="text-muted">Tornillo M8x30</span></td>
                                 <td><span class="text-muted">UND</span></td>
                                 <td><span class="text-muted">FERRETERIA</span></td>
+                                <td><span class="text-muted">OK</span></td>
                                 <td class="text-center"><span class="text-muted">10</span></td>
                             </tr>
                             <tr>
@@ -194,6 +196,7 @@
                                 <td><span class="text-muted">Tuerca M8</span></td>
                                 <td><span class="text-muted">UND</span></td>
                                 <td><span class="text-muted">FERRETERIA</span></td>
+                                <td><span class="text-muted">Por Revisar</span></td>
                                 <td class="text-center"><span class="text-muted">5</span></td>
                             </tr>
                         </tbody>
@@ -202,7 +205,8 @@
                 <p class="text-muted small mb-0">
                     <i class="bi bi-check-circle"></i>
                     Todas las columnas excepto <strong>CODIGO</strong> y <strong>DESCRIPCION</strong> son opcionales.
-                    También reconoce: DESCRIPCIÓN, PRODUCTO, UM, CATALOGO, STOCK MÍNIMO.
+                    También reconoce: DESCRIPCIÓN, PRODUCTO, UM, CATALOGO, STOCK MÍNIMO, REVISADO.
+                    Si no pones REVISADO, se pondrá "Por Revisar" por defecto.
                 </p>
             </div>
         </div>
@@ -220,8 +224,12 @@
     const btnSelect = document.getElementById('btnSeleccionar');
     const fileName = document.getElementById('fileName');
     const form = document.getElementById('uploadForm');
+    const btnVistaPrevia = document.getElementById('btnVistaPrevia');
 
     if (!dropZone || !fileInput) return;
+
+    // Variable para guardar el archivo arrastrado
+    let archivoArrastrado = null;
 
     // Click en botón abre el selector
     if (btnSelect) {
@@ -238,6 +246,7 @@
 
     // Mostrar nombre de archivo al seleccionar
     fileInput.addEventListener('change', function() {
+        archivoArrastrado = null;
         if (fileInput.files.length > 0) {
             fileName.textContent = '📄 ' + fileInput.files[0].name;
             dropZone.classList.remove('border-primary');
@@ -271,12 +280,67 @@
                 fileName.className = 'mt-2 small text-danger';
                 return;
             }
-            fileInput.files = files;
+            // Guardar referencia al archivo arrastrado
+            archivoArrastrado = file;
             fileName.textContent = '📄 ' + file.name;
             fileName.className = 'mt-2 small text-success';
             dropZone.classList.add('border-success');
+
+            // Enviar automáticamente
+            enviarArchivo(file);
         }
     });
+
+    function enviarArchivo(file) {
+        // Crear FormData y enviar vía fetch
+        const fd = new FormData();
+        fd.append('archivo', file);
+        fd.append('csrf_token', '{{ csrf_token() }}');
+
+        // Deshabilitar botón y mostrar carga
+        if (btnVistaPrevia) {
+            btnVistaPrevia.disabled = true;
+            btnVistaPrevia.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Subiendo...';
+        }
+        fileName.textContent = '⏳ Subiendo ' + file.name + '...';
+        fileName.className = 'mt-2 small text-info';
+
+        fetch(window.location.href, {
+            method: 'POST',
+            body: fd
+        })
+        .then(function(response) {
+            if (response.redirected) {
+                window.location.href = response.url;
+            } else {
+                // Recargar con la respuesta (que es HTML)
+                response.text().then(function(html) {
+                    document.open();
+                    document.write(html);
+                    document.close();
+                });
+            }
+        })
+        .catch(function(err) {
+            fileName.textContent = '❌ Error: ' + err.message;
+            fileName.className = 'mt-2 small text-danger';
+            if (btnVistaPrevia) {
+                btnVistaPrevia.disabled = false;
+                btnVistaPrevia.innerHTML = '<i class="bi bi-eye me-1"></i>Vista previa';
+            }
+        });
+    }
+
+    // Interceptar el submit normal para usar FormData si hay archivo arrastrado
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            if (archivoArrastrado && fileInput.files.length === 0) {
+                e.preventDefault();
+                enviarArchivo(archivoArrastrado);
+            }
+            // Si no hay archivo arrastrado, el submit normal funciona
+        });
+    }
 
     // Prevenir comportamiento por defecto en toda la página (evita abrir archivos)
     document.addEventListener('dragover', function(e) { e.preventDefault(); });
@@ -284,4 +348,3 @@
 })();
 </script>
 {% endblock %}
- %}

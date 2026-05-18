@@ -146,6 +146,7 @@ def create_app(testing=False):
             "productos": [
                 ("familia_id", "INTEGER"),
                 ("almacen_id", "INTEGER"),
+                ("revisado", "VARCHAR(20)"),
             ],
             "entradas": [
                 ("oc_id", "INTEGER"),
