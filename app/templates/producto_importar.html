@@ -122,8 +122,7 @@
                 </ol>
                 <p class="text-muted small mb-0">
                     <i class="bi bi-info-circle"></i>
-                    Máximo <strong>{{ 5000 }}</strong> filas por archivo.
-                    Solo formato <strong>.xlsx</strong> (Office 2007+).
+                    Máximo 5000 filas por archivo. Solo formato <strong>.xlsx</strong>.
                 </p>
             </div>
         </div>
@@ -137,19 +136,19 @@
                     </a>
                 </div>
 
-                <form method="POST" enctype="multipart/form-data" id="uploadForm">
+                <form method="POST" enctype="multipart/form-data" action="{{ url_for('routes.producto_importar') }}" id="uploadForm">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
-                        <div id="dropZone" class="drop-zone border border-2 border-dashed rounded-3 p-5 text-center">
+                        <div id="dropZone" class="drop-zone border border-2 border-dashed rounded-3 p-5 text-center" style="cursor:pointer;">
                             <i class="bi bi-cloud-upload display-3 text-primary"></i>
                             <h5 class="mt-2">Arrastra tu archivo Excel aquí</h5>
                             <p class="text-muted mb-3">o haz clic para seleccionar</p>
-                            <input type="file" class="form-control d-none" id="archivo" name="archivo"
-                                   accept=".xlsx">
+                            <input type="file" class="d-none" id="archivo" name="archivo" accept=".xlsx">
                             <button type="button" class="btn btn-outline-primary" id="btnSeleccionar">
                                 <i class="bi bi-folder2-open me-1"></i>Seleccionar archivo
                             </button>
                             <div id="fileName" class="mt-2 small text-muted"></div>
+                            <div id="fileError" class="mt-2 small text-danger d-none"></div>
                         </div>
                         <div class="form-text">Solo archivos .xlsx (Excel 2007+). Máximo 16 MB.</div>
                     </div>
@@ -217,19 +216,16 @@
 
 {% block scripts %}
 <script>
-// Drag & Drop para subida de archivos
+// Drag & Drop para subida de archivos - versión simplificada
 (function() {
-    const dropZone = document.getElementById('dropZone');
-    const fileInput = document.getElementById('archivo');
-    const btnSelect = document.getElementById('btnSeleccionar');
-    const fileName = document.getElementById('fileName');
-    const form = document.getElementById('uploadForm');
-    const btnVistaPrevia = document.getElementById('btnVistaPrevia');
+    var dropZone = document.getElementById('dropZone');
+    var fileInput = document.getElementById('archivo');
+    var btnSelect = document.getElementById('btnSeleccionar');
+    var fileName = document.getElementById('fileName');
+    var fileError = document.getElementById('fileError');
+    var form = document.getElementById('uploadForm');
 
     if (!dropZone || !fileInput) return;
-
-    // Variable para guardar el archivo arrastrado
-    let archivoArrastrado = null;
 
     // Click en botón abre el selector
     if (btnSelect) {
@@ -244,13 +240,12 @@
         fileInput.click();
     });
 
-    // Mostrar nombre de archivo al seleccionar
+    // Mostrar nombre al seleccionar archivo
     fileInput.addEventListener('change', function() {
-        archivoArrastrado = null;
         if (fileInput.files.length > 0) {
-            fileName.textContent = '📄 ' + fileInput.files[0].name;
-            dropZone.classList.remove('border-primary');
-            dropZone.classList.add('border-success');
+            fileName.textContent = 'Archivo seleccionado: ' + fileInput.files[0].name;
+            fileName.className = 'mt-2 small text-success';
+            if (fileError) fileError.className = 'mt-2 small text-danger d-none';
         }
     });
 
@@ -272,75 +267,40 @@
         e.stopPropagation();
         dropZone.classList.remove('border-primary', 'bg-light');
 
-        const files = e.dataTransfer.files;
-        if (files.length > 0) {
-            const file = files[0];
-            if (!file.name.toLowerCase().endsWith('.xlsx')) {
-                fileName.textContent = '❌ Solo se aceptan archivos .xlsx';
-                fileName.className = 'mt-2 small text-danger';
-                return;
+        var files = e.dataTransfer.files;
+        if (files.length === 0) return;
+
+        var file = files[0];
+
+        // Validar extensión .xlsx
+        if (!file.name.toLowerCase().endsWith('.xlsx')) {
+            if (fileError) {
+                fileError.textContent = 'Solo se aceptan archivos .xlsx';
+                fileError.className = 'mt-2 small text-danger';
             }
-            // Guardar referencia al archivo arrastrado
-            archivoArrastrado = file;
-            fileName.textContent = '📄 ' + file.name;
+            fileName.textContent = '';
+            return;
+        }
+
+        // Asignar el archivo al input usando DataTransfer (método moderno)
+        try {
+            var dt = new DataTransfer();
+            dt.items.add(file);
+            fileInput.files = dt.files;
+            fileName.textContent = 'Listo: ' + file.name;
             fileName.className = 'mt-2 small text-success';
+            if (fileError) fileError.className = 'mt-2 small text-danger d-none';
             dropZone.classList.add('border-success');
 
-            // Enviar automáticamente
-            enviarArchivo(file);
+            // Enviar el formulario automáticamente
+            form.submit();
+        } catch(err) {
+            if (fileError) {
+                fileError.textContent = 'Error al procesar el archivo: ' + err.message;
+                fileError.className = 'mt-2 small text-danger';
+            }
         }
     });
-
-    function enviarArchivo(file) {
-        // Crear FormData y enviar vía fetch
-        const fd = new FormData();
-        fd.append('archivo', file);
-        fd.append('csrf_token', '{{ csrf_token() }}');
-
-        // Deshabilitar botón y mostrar carga
-        if (btnVistaPrevia) {
-            btnVistaPrevia.disabled = true;
-            btnVistaPrevia.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Subiendo...';
-        }
-        fileName.textContent = '⏳ Subiendo ' + file.name + '...';
-        fileName.className = 'mt-2 small text-info';
-
-        fetch(window.location.href, {
-            method: 'POST',
-            body: fd
-        })
-        .then(function(response) {
-            if (response.redirected) {
-                window.location.href = response.url;
-            } else {
-                // Recargar con la respuesta (que es HTML)
-                response.text().then(function(html) {
-                    document.open();
-                    document.write(html);
-                    document.close();
-                });
-            }
-        })
-        .catch(function(err) {
-            fileName.textContent = '❌ Error: ' + err.message;
-            fileName.className = 'mt-2 small text-danger';
-            if (btnVistaPrevia) {
-                btnVistaPrevia.disabled = false;
-                btnVistaPrevia.innerHTML = '<i class="bi bi-eye me-1"></i>Vista previa';
-            }
-        });
-    }
-
-    // Interceptar el submit normal para usar FormData si hay archivo arrastrado
-    if (form) {
-        form.addEventListener('submit', function(e) {
-            if (archivoArrastrado && fileInput.files.length === 0) {
-                e.preventDefault();
-                enviarArchivo(archivoArrastrado);
-            }
-            // Si no hay archivo arrastrado, el submit normal funciona
-        });
-    }
 
     // Prevenir comportamiento por defecto en toda la página (evita abrir archivos)
     document.addEventListener('dragover', function(e) { e.preventDefault(); });
