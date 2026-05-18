@@ -21,7 +21,7 @@
 <!-- PASO 2: VISTA PREVIA -->
 <!-- ============================================================ -->
 <div class="row justify-content-center">
-    <div class="col-lg-10">
+    <div class="col-lg-12">
         <!-- Resumen -->
         <div class="card shadow-sm border-0 mb-3">
             <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -44,12 +44,16 @@
                     <table class="table table-sm table-hover mb-0">
                         <thead class="table-dark">
                             <tr>
-                                {% for h in headers %}
-                                <th>{{ h }}</th>
-                                {% endfor %}
-                                <th>GUÍA REMISIÓN</th>
+                                <th>CÓDIGO</th>
+                                <th>CANTIDAD</th>
+                                <th>U.M2</th>
+                                <th>ZONA</th>
+                                <th>UBICACIÓN</th>
+                                <th>ALM</th>
+                                <th>F.INGRESO</th>
+                                <th>OC</th>
+                                <th>G.REMISIÓN</th>
                                 <th>FAMILIA</th>
-                                <th class="text-center">PRODUCTO</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -61,10 +65,10 @@
                                 <td>{{ f.zona or '—' }}</td>
                                 <td>{{ f.ubicacion or '—' }}</td>
                                 <td>{{ f.alm or '—' }}</td>
+                                <td class="small">{{ f.fecha.strftime('%d/%m/%Y') if f.fecha else '—' }}</td>
                                 <td>{{ f.oc or '—' }}</td>
                                 <td>{{ f.guia or '—' }}</td>
                                 <td>{{ f.familia or '—' }}</td>
-                                <td class="small">{{ f.fecha.strftime('%d/%m/%Y') if f.fecha else '—' }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -115,14 +119,14 @@
             <div class="card-body p-4">
                 <h5 class="card-title mb-3">Instrucciones</h5>
                 <ol class="mb-3">
-                    <li>Prepara tu archivo Excel con los datos de las <strong>entradas</strong> a registrar.</li>
+                    <li>Descarga la <strong>plantilla Excel</strong> con el botón de abajo.</li>
+                    <li>Llena los datos de las <strong>entradas</strong> a registrar.</li>
                     <li>Columnas requeridas: <strong>CODIGO</strong> (del producto), <strong>CANTIDAD</strong>.</li>
-                    <li>Columnas opcionales: U.M2, ZONA, UBICACIÓN, ALM, F.INGRESO, OC, G.REMISION.</li>
                     <li>Sube el archivo y <strong>revisa la vista previa</strong> antes de confirmar.</li>
                 </ol>
                 <p class="text-muted small mb-0">
                     <i class="bi bi-info-circle"></i>
-                    Máximo <strong>{{ 1000 }}</strong> filas por archivo.
+                    Máximo <strong>5000</strong> filas por archivo.
                     Solo formato <strong>.xlsx</strong> (Office 2007+).
                 </p>
             </div>
@@ -137,25 +141,25 @@
                     </a>
                 </div>
 
-                <form method="POST" enctype="multipart/form-data" id="uploadForm">
+                <form method="POST" enctype="multipart/form-data" action="{{ url_for('routes.entradas_importar') }}" id="uploadForm">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
-                        <div id="dropZone" class="drop-zone border border-2 border-dashed rounded-3 p-5 text-center">
+                        <div id="dropZone" class="drop-zone border border-2 border-dashed rounded-3 p-5 text-center" style="cursor:pointer;">
                             <i class="bi bi-cloud-upload display-3 text-primary"></i>
                             <h5 class="mt-2">Arrastra tu archivo Excel aquí</h5>
                             <p class="text-muted mb-3">o haz clic para seleccionar</p>
-                            <input type="file" class="form-control d-none" id="archivo" name="archivo"
-                                   accept=".xlsx" required>
+                            <input type="file" class="d-none" id="archivo" name="archivo" accept=".xlsx">
                             <button type="button" class="btn btn-outline-primary" id="btnSeleccionar">
                                 <i class="bi bi-folder2-open me-1"></i>Seleccionar archivo
                             </button>
                             <div id="fileName" class="mt-2 small text-muted"></div>
+                            <div id="fileError" class="mt-2 small text-danger d-none"></div>
                         </div>
                         <div class="form-text">Solo archivos .xlsx (Excel 2007+). Máximo 16 MB.</div>
                     </div>
                     <div class="d-flex justify-content-end gap-2">
                         <a href="{{ url_for('routes.entradas') }}" class="btn btn-secondary">Cancelar</a>
-                        <button type="submit" class="btn btn-primary">
+                        <button type="submit" class="btn btn-primary" id="btnVistaPrevia">
                             <i class="bi bi-eye me-1"></i>Vista previa
                         </button>
                     </div>
@@ -172,7 +176,9 @@
                         <thead class="table-primary">
                             <tr>
                                 <th>CODIGO</th>
-                                <th>CANTIDAD</th>
+                                <th>COD. CATALOGO</th>
+                                <th>DESCRIPCION</th>
+                                <th>CANTIDA</th>
                                 <th>U.M2</th>
                                 <th>ZONA</th>
                                 <th>UBICACIÓN</th>
@@ -180,11 +186,14 @@
                                 <th>F.INGRESO</th>
                                 <th>OC</th>
                                 <th>G.REMISION</th>
+                                <th>FAMILIA</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <td><span class="text-muted">P001</span></td>
+                                <td><span class="text-muted">CAT-001</span></td>
+                                <td><span class="text-muted">Tornillo M8x30</span></td>
                                 <td class="text-center"><span class="text-muted">50</span></td>
                                 <td><span class="text-muted">UND</span></td>
                                 <td><span class="text-muted">A</span></td>
@@ -193,6 +202,7 @@
                                 <td><span class="text-muted">01/01/2025</span></td>
                                 <td><span class="text-muted">OC-001</span></td>
                                 <td><span class="text-muted">G-001</span></td>
+                                <td><span class="text-muted">FERRETERIA</span></td>
                             </tr>
                         </tbody>
                     </table>
@@ -213,11 +223,12 @@
 <script>
 // Drag & Drop para subida de archivos
 (function() {
-    const dropZone = document.getElementById('dropZone');
-    const fileInput = document.getElementById('archivo');
-    const btnSelect = document.getElementById('btnSeleccionar');
-    const fileName = document.getElementById('fileName');
-    const form = document.getElementById('uploadForm');
+    var dropZone = document.getElementById('dropZone');
+    var fileInput = document.getElementById('archivo');
+    var btnSelect = document.getElementById('btnSeleccionar');
+    var fileName = document.getElementById('fileName');
+    var fileError = document.getElementById('fileError');
+    var form = document.getElementById('uploadForm');
 
     if (!dropZone || !fileInput) return;
 
@@ -234,9 +245,9 @@
 
     fileInput.addEventListener('change', function() {
         if (fileInput.files.length > 0) {
-            fileName.textContent = '📄 ' + fileInput.files[0].name;
-            dropZone.classList.remove('border-primary');
-            dropZone.classList.add('border-success');
+            fileName.textContent = 'Archivo seleccionado: ' + fileInput.files[0].name;
+            fileName.className = 'mt-2 small text-success';
+            if (fileError) fileError.className = 'mt-2 small text-danger d-none';
         }
     });
 
@@ -257,18 +268,34 @@
         e.stopPropagation();
         dropZone.classList.remove('border-primary', 'bg-light');
 
-        const files = e.dataTransfer.files;
-        if (files.length > 0) {
-            const file = files[0];
-            if (!file.name.toLowerCase().endsWith('.xlsx')) {
-                fileName.textContent = '❌ Solo se aceptan archivos .xlsx';
-                fileName.className = 'mt-2 small text-danger';
-                return;
+        var files = e.dataTransfer.files;
+        if (files.length === 0) return;
+
+        var file = files[0];
+
+        if (!file.name.toLowerCase().endsWith('.xlsx')) {
+            if (fileError) {
+                fileError.textContent = 'Solo se aceptan archivos .xlsx';
+                fileError.className = 'mt-2 small text-danger';
             }
-            fileInput.files = files;
-            fileName.textContent = '📄 ' + file.name;
+            fileName.textContent = '';
+            return;
+        }
+
+        try {
+            var dt = new DataTransfer();
+            dt.items.add(file);
+            fileInput.files = dt.files;
+            fileName.textContent = 'Listo: ' + file.name;
             fileName.className = 'mt-2 small text-success';
+            if (fileError) fileError.className = 'mt-2 small text-danger d-none';
             dropZone.classList.add('border-success');
+            form.submit();
+        } catch(err) {
+            if (fileError) {
+                fileError.textContent = 'Error: ' + err.message;
+                fileError.className = 'mt-2 small text-danger';
+            }
         }
     });
 
@@ -277,4 +304,3 @@
 })();
 </script>
 {% endblock %}
- %}
