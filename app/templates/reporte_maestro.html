@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Reporte Maestro - Almacén{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h4 class="mb-0"><i class="bi bi-table me-2"></i>Reporte Maestro</h4>
+    <div class="d-flex gap-2">
+        <form method="GET" class="d-flex gap-2">
+            <input type="text" class="form-control form-control-sm" name="search"
+                   placeholder="Buscar producto..." value="{{ search }}"
+                   style="min-width: 220px;">
+            <button type="submit" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-search"></i>
+            </button>
+            {% if search %}
+            <a href="{{ url_for('routes.reporte_maestro') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-x-lg"></i>
+            </a>
+            {% endif %}
+        </form>
+        <a href="{{ url_for('routes.productos') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-box me-1"></i>Productos
+        </a>
+    </div>
+</div>
+
+{% if productos_data %}
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0" style="font-size: 0.85rem;">
+                <thead class="table-dark">
+                    <tr>
+                        <th class="text-nowrap">CODIGO</th>
+                        <th class="text-nowrap">COD. CATALOGO</th>
+                        <th class="text-nowrap">DESCRIPCION DEL PRODUCTO</th>
+                        <th class="text-nowrap text-center">CANTIDAD</th>
+                        <th class="text-nowrap text-center">U.M2</th>
+                        <th class="text-nowrap">LOCACION</th>
+                        <th class="text-nowrap text-center">INGRESO</th>
+                        <th class="text-nowrap">F.INGRESO</th>
+                        <th class="text-nowrap">DOCETO</th>
+                        <th class="text-nowrap text-center">SALIDA</th>
+                        <th class="text-nowrap">F.SALIDA</th>
+                        <th class="text-nowrap">OP</th>
+                        <th class="text-nowrap text-center">EXISTENCIAS</th>
+                        <th class="text-nowrap">FAMILIA</th>
+                        <th class="text-nowrap">COD. ANT</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in productos_data %}
+                    {% set p = item.p %}
+                    {% set e = item.ultima_entrada %}
+                    {% set s = item.ultima_salida %}
+                    <tr>
+                        <td class="text-nowrap"><span class="badge bg-secondary">{{ p.codigo }}</span></td>
+                        <td class="text-nowrap small">{{ p.cod_catalogo or '—' }}</td>
+                        <td>{{ p.descripcion|truncate(50) }}</td>
+                        <td class="text-nowrap text-center">{{ '%.0f'|format(p.stock_actual) }}</td>
+                        <td class="text-nowrap text-center">{{ p.um }}</td>
+                        <td class="text-nowrap small">{{ p.locacion or '—' }}</td>
+                        <td class="text-nowrap text-center">
+                            {% if e %}
+                            <span class="badge bg-success bg-opacity-10 text-success">{{ '%.0f'|format(e.cantidad) }}</span>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-nowrap small">
+                            {% if e %}
+                            {{ e.fecha_ingreso.strftime('%d/%m/%Y') if e.fecha_ingreso else '—' }}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-nowrap small">
+                            {% if e %}
+                            {{ e.oc or e.guia_remision or '—' }}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-nowrap text-center">
+                            {% if s %}
+                            <span class="badge bg-danger bg-opacity-10 text-danger">{{ '%.0f'|format(s.cantidad) }}</span>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-nowrap small">
+                            {% if s %}
+                            {{ s.fecha_salida.strftime('%d/%m/%Y') if s.fecha_salida else '—' }}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-nowrap small">
+                            {% if s %}
+                            {{ s.nro_vale or s.oi or '—' }}
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-nowrap text-center">
+                            <strong>{{ '%.0f'|format(p.stock_actual) }}</strong>
+                        </td>
+                        <td class="text-nowrap small">{{ p.familia or '—' }}</td>
+                        <td class="text-nowrap small">{{ p.cod_ant or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mt-3">
+    <small class="text-muted">
+        Página {{ pagination.page }} de {{ pagination.pages }}
+        ({{ pagination.total }} registros)
+    </small>
+    <nav>
+        <ul class="pagination pagination-sm mb-0">
+            {% if pagination.has_prev %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('routes.reporte_maestro', page=pagination.prev_num, search=search) }}">
+                    &laquo;
+                </a>
+            </li>
+            {% endif %}
+            {% for num in pagination.iter_pages() %}
+                {% if num %}
+                <li class="page-item {% if num == pagination.page %}active{% endif %}">
+                    <a class="page-link" href="{{ url_for('routes.reporte_maestro', page=num, search=search) }}">{{ num }}</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+            {% endfor %}
+            {% if pagination.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('routes.reporte_maestro', page=pagination.next_num, search=search) }}">
+                    &raquo;
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+</div>
+{% else %}
+<div class="text-center py-5">
+    <i class="bi bi-inbox display-4 text-muted"></i>
+    <p class="mt-2 text-muted">No hay productos registrados.</p>
+</div>
+{% endif %}
+{% endblock %}

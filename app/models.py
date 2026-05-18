@@ -62,6 +62,8 @@ class Producto(db.Model):
     almacen_id = db.Column(db.Integer, db.ForeignKey("almacenes.id"), nullable=True)
     stock_actual = db.Column(db.Float, nullable=False, default=0.0)
     stock_minimo = db.Column(db.Float, nullable=False, default=0.0)
+    locacion = db.Column(db.String(100), nullable=True, default="")
+    cod_ant = db.Column(db.String(50), nullable=True, default="")
     revisado = db.Column(db.String(20), nullable=True, default="Por Revisar")
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 

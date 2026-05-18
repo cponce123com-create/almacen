@@ -1508,6 +1508,49 @@ def producto_exportar():
         download_name=f"productos_{today}.xlsx",
     )
 
+# ---------------------------------------------------------------------------
+# Ruta: Reporte maestro combinado
+# ---------------------------------------------------------------------------
+
+@routes_bp.route("/reporte-maestro")
+@login_required
+def reporte_maestro():
+    """Página con vista combinada de productos con última entrada y salida."""
+    search = request.args.get("search", "").strip()
+    page = request.args.get("page", 1, type=int)
+    per_page = 25
+
+    query = Producto.query.options(joinedload(Producto.familia_rel))
+    if search:
+        like = f"%{search}%"
+        query = query.filter(
+            Producto.codigo.ilike(like)
+            | Producto.descripcion.ilike(like)
+            | Producto.familia.ilike(like)
+        )
+    query = query.order_by(Producto.codigo.asc())
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+
+    # Para cada producto, obtener la última entrada y última salida
+    productos_data = []
+    for p in pagination.items:
+        ultima_entrada = Entrada.query.options(joinedload(Entrada.producto)).filter_by(producto_id=p.id).order_by(Entrada.fecha_ingreso.desc()).first()
+        ultima_salida = Salida.query.options(joinedload(Salida.producto)).filter_by(producto_id=p.id).order_by(Salida.fecha_salida.desc()).first()
+
+        productos_data.append({
+            "p": p,
+            "ultima_entrada": ultima_entrada,
+            "ultima_salida": ultima_salida,
+        })
+
+    return render_template(
+        "reporte_maestro.html",
+        productos_data=productos_data,
+        pagination=pagination,
+        search=search,
+    )
+
+
 def _producto_form(producto=None):
     familias = Familia.query.order_by(Familia.nombre).all()
 
